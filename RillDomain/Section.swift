@@ -1,0 +1,10 @@
+/// Fixed result groups. Ranking never crosses a section boundary, so the
+/// declaration order is the render order (see design.md §4.4).
+public enum Section: String, Sendable, CaseIterable {
+    case favorites
+    case suggestions
+    case commands
+    case applications
+    case files
+    case fallback
+}

@@ -1,0 +1,36 @@
+# macOS System
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode
+build/
+DerivedData/
+*.moved-aside
+*.xcuserstate
+
+# Xcode User Data (keep shared schemes and workspace shared data)
+xcuserdata/
+*.xcuserdatad/
+!default.mode1v3
+!default.mode2v3
+!default.pbxuser
+!default.perspectivev3
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Fastlane / CI / Tools
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Crash Logs & Temporary Artifacts
+*.crash
+*.xcresult
+*.hmap
