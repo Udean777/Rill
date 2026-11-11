@@ -17,6 +17,7 @@ struct AppEnvironment {
         let searchUseCase = SearchUseCase(
             commands: CommandRegistry(),
             applications: ApplicationCatalog(),
+            files: SpotlightFileSearch(),
             usage: usageStore,
             clock: clock
         )

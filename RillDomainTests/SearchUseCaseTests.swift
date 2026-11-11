@@ -58,14 +58,46 @@ struct SearchUseCaseTests {
         #expect(sections.first?.results.first?.title == "Safari")
     }
 
+    @Test func `includes file results in section order below applications`() async {
+        let command = SearchResult.fixture(title: "Save File", section: .commands)
+        let app = SearchResult.fixture(title: "Safari", section: .applications)
+        let file = SearchResult.fixture(title: "Safety.pdf", section: .files, kind: .file)
+
+        let useCase = makeUseCase(
+            commands: [command],
+            applications: [app],
+            files: [file]
+        )
+
+        let sections = await useCase(SearchQuery(raw: "saf"))
+
+        #expect(sections.map(\.section) == [.commands, .applications, .files])
+        #expect(sections[2].results.map(\.title) == ["Safety.pdf"])
+    }
+
+    @Test func `empty query does not invoke file search`() async {
+        let file = SearchResult.fixture(title: "Safety.pdf", section: .files, kind: .file)
+        let useCase = makeUseCase(
+            commands: [.fixture(title: "Open Settings")],
+            applications: [],
+            files: [file]
+        )
+
+        let sections = await useCase(SearchQuery(raw: ""))
+
+        #expect(sections.map(\.section) == [.commands])
+    }
+
     private func makeUseCase(
         commands: [SearchResult],
         applications: [SearchResult],
+        files: [SearchResult] = [],
         usage: UsageSnapshot = .empty
     ) -> SearchUseCase {
         SearchUseCase(
             commands: StubCommandProvider(commands: commands),
             applications: StubApplicationCatalog(apps: applications),
+            files: StubFileSearch(files: files),
             usage: StubUsageStore(snapshotValue: usage),
             clock: FixedClock(now: Date(timeIntervalSince1970: 0))
         )
@@ -81,6 +113,14 @@ private struct StubApplicationCatalog: ApplicationCataloguing {
 
     func applications() async -> [SearchResult] {
         apps
+    }
+}
+
+private struct StubFileSearch: FileSearching {
+    let files: [SearchResult]
+
+    func search(query: SearchQuery) async -> [SearchResult] {
+        files.filter { MatchScore.score(title: $0.title, query: query) > 0 }
     }
 }
 

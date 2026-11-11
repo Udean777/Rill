@@ -3,17 +3,20 @@
 public struct SearchUseCase: Sendable {
     private let commands: CommandProviding
     private let applications: ApplicationCataloguing
+    private let files: FileSearching?
     private let usage: UsageStoring
     private let clock: Clock
 
     public init(
         commands: CommandProviding,
         applications: ApplicationCataloguing,
+        files: FileSearching? = nil,
         usage: UsageStoring,
         clock: Clock
     ) {
         self.commands = commands
         self.applications = applications
+        self.files = files
         self.usage = usage
         self.clock = clock
     }
@@ -25,10 +28,19 @@ public struct SearchUseCase: Sendable {
         if query.mode == .root {
             candidates = allCommands
         } else {
-            let allApplications = await applications.applications()
-            candidates = (allCommands + allApplications).filter { result in
+            async let fetchedApps = applications.applications()
+            async let fetchedFiles: [SearchResult] = {
+                guard let files else { return [] }
+                return await files.search(query: query)
+            }()
+
+            let (allApplications, fileResults) = await (fetchedApps, fetchedFiles)
+
+            let matchingStatic = (allCommands + allApplications).filter { result in
                 MatchScore.score(title: result.title, query: query) > 0
             }
+
+            candidates = matchingStatic + fileResults
         }
 
         let snapshot = await usage.snapshot()
