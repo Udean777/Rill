@@ -8,10 +8,10 @@ public enum MatchScore {
         query: SearchQuery,
         tuning: RankingTuning = .standard
     ) -> Double {
-        let foldedTitle = fold(title)
-        let foldedQuery = fold(query.trimmed)
-
+        let foldedQuery = query.folded
         guard !foldedQuery.isEmpty else { return 1 }
+
+        let foldedTitle = fold(title)
         if foldedTitle == foldedQuery { return 1 }
         if foldedTitle.hasPrefix(foldedQuery) { return 0.9 }
         if hasWordBoundaryPrefix(foldedTitle, foldedQuery) { return 0.8 }
@@ -35,19 +35,20 @@ public enum MatchScore {
     /// Characters skipped between the first and last subsequence match, or
     /// `nil` when `query` is not a subsequence of `title`.
     private static func subsequenceGap(_ title: String, _ query: String) -> Int? {
+        guard !query.isEmpty else { return 0 }
         var firstMatch: Int?
         var lastMatch = 0
-        var matched = 0
+        var queryIndex = query.startIndex
 
-        for (index, character) in title.enumerated() where matched < query.count {
-            let expected = query[query.index(query.startIndex, offsetBy: matched)]
-            guard character == expected else { continue }
+        for (index, character) in title.enumerated() {
+            guard character == query[queryIndex] else { continue }
             firstMatch = firstMatch ?? index
             lastMatch = index
-            matched += 1
+            queryIndex = query.index(after: queryIndex)
+            if queryIndex == query.endIndex { break }
         }
 
-        guard matched == query.count, let firstMatch else { return nil }
+        guard queryIndex == query.endIndex, let firstMatch else { return nil }
         return (lastMatch - firstMatch + 1) - query.count
     }
 }
