@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Verify
+    # Same toolchain as the release build.
+    runs-on: xcode-27
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          xcode=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -vi beta | sort -V | tail -n 1)
+          if [ -n "$xcode" ]; then
+            echo "Selecting $xcode"
+            sudo xcode-select -s "$xcode"
+          fi
+          xcodebuild -version
+
+      - name: Run Tests
+        run: xcodebuild -scheme Rill -destination 'platform=macOS' test
+
+      - name: Build Rill (Debug)
+        run: |
+          set -o pipefail
+          xcodebuild clean build \
+            -project Rill.xcodeproj \
+            -scheme Rill \
+            -configuration Debug \
+            -derivedDataPath build/dd \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild.log || {
+              echo "::error::Build failed! Printing compile errors from log:"
+              grep -E "(error:|fatal error:)" xcodebuild.log || tail -n 100 xcodebuild.log
+              exit 1
+            }
+
+      - name: Verify Bundle Invariants
+        run: |
+          APP="build/dd/Build/Products/Debug/Rill.app"
+          test -d "$APP"
+          # Invariant 1: App never activates (LSUIElement = YES per design.md §5.3 and AGENTS.md §1.1)
+          plutil -p "$APP/Contents/Info.plist" | grep -q '"LSUIElement" => true'
+          # Invariant 2: Target frameworks are properly embedded
+          test -d "$APP/Contents/Frameworks/RillDomain.framework"
+          test -d "$APP/Contents/Frameworks/RillData.framework"
+          test -d "$APP/Contents/Frameworks/RillUI.framework"
+          test -d "$APP/Contents/Frameworks/RillPlatform.framework"
