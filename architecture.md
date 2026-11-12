@@ -479,6 +479,7 @@ Each is a deliberate deferral with an upgrade path, and each appears as a `short
 | Write-through usage writes (no batching)                  | Executions become automated or batched                                                            |
 | Application scan one level per root                       | Missing apps reported inside bundle-style subdirectories                                          |
 | No extension/plugin seam beyond `ActionDescriptor.custom` | When a second-party command source is needed                                                      |
+| Single home-directory scope for file search               | When custom folder scopes are requested by users                                                  |
 | English-only strings                                      | Before any non-English user feedback — though all strings already go through `String(localized:)` |
 | No crash reporting                                        | Public distribution                                                                               |
 

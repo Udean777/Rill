@@ -13,15 +13,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let environment = AppEnvironment.live()
         self.environment = environment
-        environment.paletteWindowController.prewarm()
-
-        Task {
-            do {
-                _ = try await environment.hotkeyManager.register(.default)
-            } catch {
-                // CarbonHotkeyManager logged the OSStatus; a failed registration
-                // must not block launch.
-            }
-        }
+        environment.start()
     }
 }

@@ -6,19 +6,22 @@ public struct SearchUseCase: Sendable {
     private let files: FileSearching?
     private let usage: UsageStoring
     private let clock: Clock
+    private let isFilesEnabled: (@Sendable () async -> Bool)?
 
     public init(
         commands: CommandProviding,
         applications: ApplicationCataloguing,
         files: FileSearching? = nil,
         usage: UsageStoring,
-        clock: Clock
+        clock: Clock,
+        isFilesEnabled: (@Sendable () async -> Bool)? = nil
     ) {
         self.commands = commands
         self.applications = applications
         self.files = files
         self.usage = usage
         self.clock = clock
+        self.isFilesEnabled = isFilesEnabled
     }
 
     public func callAsFunction(_ query: SearchQuery) async -> [RankedSection] {
@@ -28,9 +31,16 @@ public struct SearchUseCase: Sendable {
         if query.mode == .root {
             candidates = allCommands
         } else {
+            let filesAllowed: Bool
+            if let isFilesEnabled {
+                filesAllowed = await isFilesEnabled()
+            } else {
+                filesAllowed = files != nil
+            }
+
             async let fetchedApps = applications.applications()
             async let fetchedFiles: [SearchResult] = {
-                guard let files else { return [] }
+                guard filesAllowed, let files else { return [] }
                 return await files.search(query: query)
             }()
 

@@ -88,18 +88,37 @@ struct SearchUseCaseTests {
         #expect(sections.map(\.section) == [.commands])
     }
 
+    @Test func `disabling file search suppresses file results`() async {
+        let command = SearchResult.fixture(title: "Save File", section: .commands)
+        let file = SearchResult.fixture(title: "Safety.pdf", section: .files, kind: .file)
+
+        let useCase = makeUseCase(
+            commands: [command],
+            applications: [],
+            files: [file],
+            isFilesEnabled: { false }
+        )
+
+        let sections = await useCase(SearchQuery(raw: "saf"))
+
+        #expect(sections.map(\.section) == [.commands])
+        #expect(!sections.contains(where: { $0.section == .files }))
+    }
+
     private func makeUseCase(
         commands: [SearchResult],
         applications: [SearchResult],
         files: [SearchResult] = [],
-        usage: UsageSnapshot = .empty
+        usage: UsageSnapshot = .empty,
+        isFilesEnabled: (@Sendable () async -> Bool)? = nil
     ) -> SearchUseCase {
         SearchUseCase(
             commands: StubCommandProvider(commands: commands),
             applications: StubApplicationCatalog(apps: applications),
             files: StubFileSearch(files: files),
             usage: StubUsageStore(snapshotValue: usage),
-            clock: FixedClock(now: Date(timeIntervalSince1970: 0))
+            clock: FixedClock(now: Date(timeIntervalSince1970: 0)),
+            isFilesEnabled: isFilesEnabled
         )
     }
 }
