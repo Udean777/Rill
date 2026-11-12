@@ -33,7 +33,8 @@ public struct PaletteView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 20))
                 .focused($isSearchFocused)
-                .accessibilityLabel(String(localized: "Search"))
+                .accessibilityLabel(String(localized: "Search query"))
+                .accessibilityIdentifier("SearchField")
         }
         .padding(.horizontal, 18)
         .frame(height: 52)
@@ -74,6 +75,8 @@ public struct PaletteView: View {
                     proxy.scrollTo(selectedResultID, anchor: .center)
                 }
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(String(localized: "Search Results"))
         }
     }
 }

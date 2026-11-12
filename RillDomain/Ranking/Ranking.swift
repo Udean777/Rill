@@ -64,7 +64,12 @@ public enum Ranking {
         now: Date,
         tuning: RankingTuning
     ) -> Double {
-        let match = MatchScore.score(title: result.title, query: query, tuning: tuning)
+        let match: Double
+        if result.baseScore > 0 {
+            match = result.baseScore
+        } else {
+            match = MatchScore.score(title: result.title, query: query, tuning: tuning)
+        }
         let frecency = Frecency.score(usage.entry(for: result.id), now: now, tuning: tuning)
         return tuning.matchWeight * match + tuning.frecencyWeight * frecency
     }

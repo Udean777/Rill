@@ -27,6 +27,11 @@ public final class SystemActionPerformer: ActionPerforming {
 
         case .openURL(let url), .openFile(let url):
             try open(url)
+
+        case .copyToPasteboard(let text):
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
         }
     }
 

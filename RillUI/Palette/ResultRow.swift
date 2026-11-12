@@ -66,8 +66,14 @@ struct ResultRow: View {
     }
 
     private var accessibilityLabel: String {
-        [result.title, result.subtitle]
-            .compactMap { $0 }
-            .joined(separator: ", ")
+        var components = [result.title]
+        if let subtitle = result.subtitle {
+            components.append(subtitle)
+        }
+        components.append(result.section.localizedTitle)
+        if let shortcutNumber {
+            components.append("Command \(shortcutNumber)")
+        }
+        return components.joined(separator: ", ")
     }
 }

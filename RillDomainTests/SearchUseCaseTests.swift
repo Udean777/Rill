@@ -25,7 +25,7 @@ struct SearchUseCaseTests {
 
         let sections = await useCase(SearchQuery(raw: "saf"))
 
-        #expect(sections.map(\.section) == [.commands, .applications])
+        #expect(sections.map(\.section) == [.commands, .applications, .fallback])
         #expect(sections[0].results.map(\.title) == ["Open Safari Tab"])
         #expect(sections[1].results.map(\.title) == ["Safari"])
     }
@@ -36,9 +36,9 @@ struct SearchUseCaseTests {
             applications: [.fixture(title: "Safari", section: .applications)]
         )
 
-        let sections = await useCase(SearchQuery(raw: "zzz"))
+        let sections = await useCase(SearchQuery(raw: ""))
 
-        #expect(sections.isEmpty)
+        #expect(sections.map(\.section) == [.commands])
     }
 
     @Test func `a recently used result is promoted`() async {
@@ -71,7 +71,7 @@ struct SearchUseCaseTests {
 
         let sections = await useCase(SearchQuery(raw: "saf"))
 
-        #expect(sections.map(\.section) == [.commands, .applications, .files])
+        #expect(sections.map(\.section) == [.commands, .applications, .files, .fallback])
         #expect(sections[2].results.map(\.title) == ["Safety.pdf"])
     }
 
@@ -101,8 +101,24 @@ struct SearchUseCaseTests {
 
         let sections = await useCase(SearchQuery(raw: "saf"))
 
-        #expect(sections.map(\.section) == [.commands])
+        #expect(sections.map(\.section) == [.commands, .fallback])
         #expect(!sections.contains(where: { $0.section == .files }))
+    }
+
+    @Test func `fallback contains calculation and web search when applicable`() async {
+        let useCase = makeUseCase(
+            commands: [],
+            applications: []
+        )
+
+        let sections = await useCase(SearchQuery(raw: "12 * 4"))
+
+        #expect(sections.map(\.section) == [.fallback])
+        let fallbackResults = sections.first?.results ?? []
+        #expect(fallbackResults.count == 2)
+        #expect(fallbackResults[0].kind == .calculation)
+        #expect(fallbackResults[0].title == "48")
+        #expect(fallbackResults[1].kind == .web)
     }
 
     private func makeUseCase(

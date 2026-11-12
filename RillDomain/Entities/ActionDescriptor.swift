@@ -11,4 +11,7 @@ public enum ActionDescriptor: Sendable, Hashable {
 
     /// Opens a file or folder in its default application.
     case openFile(URL)
+
+    /// Copies text to the system pasteboard.
+    case copyToPasteboard(String)
 }
