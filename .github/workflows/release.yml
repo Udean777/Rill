@@ -45,6 +45,11 @@ jobs:
           fi
           xcodebuild -version
 
+      - name: Ensure Xcode Project Compatibility
+        run: |
+          # Clear DEVELOPMENT_TEAM so CI runner does not require a local developer signing identity
+          sed -i '' 's/"DEVELOPMENT_TEAM": "[^"]*"/"DEVELOPMENT_TEAM": ""/g' Rill.xcodeproj/project.xcproj || true
+
       - name: Calculate Next Version
         id: version
         run: |

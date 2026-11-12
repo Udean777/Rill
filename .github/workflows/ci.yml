@@ -27,8 +27,25 @@ jobs:
           fi
           xcodebuild -version
 
+      - name: Ensure Xcode Project Compatibility
+        run: |
+          # Clear DEVELOPMENT_TEAM so CI runner does not require a local developer signing identity
+          sed -i '' 's/"DEVELOPMENT_TEAM": "[^"]*"/"DEVELOPMENT_TEAM": ""/g' Rill.xcodeproj/project.xcproj || true
+
       - name: Run Tests
-        run: xcodebuild -scheme Rill -destination 'platform=macOS' test
+        run: |
+          set -o pipefail
+          xcodebuild clean test \
+            -project Rill.xcodeproj \
+            -scheme Rill \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild-test.log || {
+              echo "::error::Tests failed! Printing compile/test errors from log:"
+              grep -E "(error:|fatal error:)" xcodebuild-test.log || tail -n 100 xcodebuild-test.log
+              exit 1
+            }
 
       - name: Build Rill (Debug)
         run: |
