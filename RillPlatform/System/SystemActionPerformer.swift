@@ -32,6 +32,11 @@ public final class SystemActionPerformer: ActionPerforming {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(text, forType: .string)
+
+        case .openSettings, .openClipboardHistory:
+            // The app layer intercepts this before dispatch; reaching the
+            // performer means the routing is broken, so fail loudly.
+            throw SystemActionError.unsupportedAction
         }
     }
 
@@ -46,4 +51,5 @@ public final class SystemActionPerformer: ActionPerforming {
 private enum SystemActionError: Error {
     case applicationNotFound
     case openFailed
+    case unsupportedAction
 }

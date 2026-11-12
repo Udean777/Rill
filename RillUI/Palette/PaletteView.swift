@@ -3,6 +3,7 @@ import SwiftUI
 
 /// The palette: a search field over sectioned, keyboard-navigable results.
 public struct PaletteView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable private var viewModel: PaletteViewModel
     @FocusState private var isSearchFocused: Bool
 
@@ -11,26 +12,47 @@ public struct PaletteView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            searchField
-            Divider()
-            resultList
-            if viewModel.isRootQuery, let commands = viewModel.commandSection {
-                Divider()
-                CommandChipRow(
-                    results: commands.results,
-                    selectedResultID: viewModel.selectedResultID,
-                    action: { viewModel.selectAndActivate($0) }
-                )
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
+        Group {
+            if viewModel.mode == .clipboardHistory, let clipboardViewModel = viewModel.clipboardViewModel {
+                ClipboardView(viewModel: clipboardViewModel)
+            } else {
+                VStack(spacing: 0) {
+                    searchField
+                    Rectangle()
+                        .fill(.primary.opacity(0.08))
+                        .frame(height: 0.5)
+                    resultList
+                    if viewModel.showsKeyboardHints {
+                        Rectangle()
+                            .fill(.primary.opacity(0.08))
+                            .frame(height: 0.5)
+                        PaletteFooterView(
+                            selectedResult: viewModel.selectedResult,
+                            showsHints: viewModel.showsKeyboardHints,
+                            hasMultipleApplicationPages: viewModel.hasMultipleApplicationPages,
+                            onOpenClipboard: { viewModel.openClipboardHistory() },
+                            onOpenSettings: {
+                                if let onOpenSettings = viewModel.onOpenSettings {
+                                    viewModel.onRequestHide?()
+                                    viewModel.reset()
+                                    onOpenSettings()
+                                }
+                            }
+                        )
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(.white.opacity(0.14), lineWidth: 1)
+                .stroke(.white.opacity(0.12), lineWidth: 1)
+        )
+        .scaleEffect(viewModel.isVisible ? 1.0 : 0.98)
+        .animation(
+            reduceMotion ? nil : .spring(response: 0.18, dampingFraction: 0.85),
+            value: viewModel.isVisible
         )
         .onAppear { isSearchFocused = viewModel.isVisible }
         .onChange(of: viewModel.isVisible) { _, isVisible in
@@ -63,49 +85,54 @@ public struct PaletteView: View {
     }
 
     private var resultList: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 1) {
-                    ForEach(visibleSections) { ranked in
-                        VStack(spacing: 1) {
-                            Section {
-                                ForEach(ranked.results) { result in
-                                    ResultRow(
-                                        result: result,
-                                        shortcutNumber: viewModel.shortcutNumber(for: result.id),
-                                        isSelected: viewModel.selectedResultID == result.id,
-                                        action: { viewModel.selectAndActivate(result) }
-                                    )
-                                    .id(result.id)
-                                }
-                            } header: {
-                                SectionHeader(section: ranked.section)
-                            }
+        Group {
+            if !viewModel.isRootQuery, visibleSections.isEmpty {
+                EmptyResultView(query: viewModel.query)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 1) {
+                            ForEach(visibleSections) { ranked in
+                                VStack(spacing: 1) {
+                                    Section {
+                                        ForEach(ranked.results) { result in
+                                            ResultRow(
+                                                result: result,
+                                                shortcutNumber: viewModel.shortcutNumber(for: result.id),
+                                                isSelected: viewModel.selectedResultID == result.id,
+                                                isPinned: result.section == .favorites,
+                                                action: { viewModel.selectAndActivate(result) },
+                                                onTogglePin: { viewModel.togglePin(result) }
+                                            )
+                                            .id(result.id)
+                                        }
+                                    } header: {
+                                        SectionHeader(section: ranked.section)
+                                    }
 
-                            if ranked.section == .applications, viewModel.hasMultipleApplicationPages {
-                                pager
+                                    if ranked.section == .applications, viewModel.hasMultipleApplicationPages {
+                                        pager
+                                    }
+                                }
                             }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .onChange(of: viewModel.selectedResultID) { _, selectedResultID in
+                        guard let selectedResultID else { return }
+                        withAnimation(.easeOut(duration: 0.08)) {
+                            proxy.scrollTo(selectedResultID, anchor: .center)
                         }
                     }
                 }
-                .padding(.vertical, 4)
             }
-            .onChange(of: viewModel.selectedResultID) { _, selectedResultID in
-                guard let selectedResultID else { return }
-                withAnimation(.easeOut(duration: 0.08)) {
-                    proxy.scrollTo(selectedResultID, anchor: .center)
-                }
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(String(localized: "Search Results"))
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(String(localized: "Search Results"))
     }
 
-    /// Root layout keeps commands in the chip row, not in the scrolling list.
     private var visibleSections: [RankedSection] {
-        viewModel.isRootQuery
-            ? viewModel.displaySections.filter { $0.section != .commands }
-            : viewModel.displaySections
+        viewModel.displaySections
     }
 
     private var pager: some View {
@@ -123,7 +150,7 @@ public struct PaletteView: View {
             .accessibilityLabel(String(localized: "Previous page"))
 
             Text("\(viewModel.applicationsPage + 1) / \(viewModel.applicationPageCount)")
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
 
@@ -139,7 +166,7 @@ public struct PaletteView: View {
 
             Spacer()
         }
-        .font(.system(size: 10, weight: .semibold))
+        .font(.system(size: 12, weight: .semibold))
         .foregroundStyle(.secondary)
         .padding(.vertical, 3)
         .accessibilityElement(children: .contain)
@@ -169,12 +196,12 @@ private struct PreviewCommands: CommandProviding {
         [
             SearchResult(
                 id: .init(source: "command", raw: "open-settings"),
-                title: "Open Settings",
-                subtitle: "System Settings",
+                title: "Rill Settings",
+                subtitle: "Preferences",
                 icon: .systemSymbol("gearshape"),
                 section: .commands,
                 kind: .command,
-                primaryAction: .openFile(URL(fileURLWithPath: "/"))
+                primaryAction: .openSettings
             )
         ]
     }
@@ -186,6 +213,14 @@ private struct PreviewUsageStore: UsageStoring {
     }
 
     func record(_ id: SearchResult.ID, at date: Date) async {}
+
+    func pinned() async -> [PinnedResult] { [] }
+
+    func setPinned(_ result: SearchResult, isPinned: Bool, at date: Date) async {}
+
+    func clearPins() async {}
+
+    func reset() async {}
 }
 
 private struct PreviewClock: RillDomain.Clock {

@@ -86,6 +86,50 @@ struct SearchUseCaseTests {
         #expect(sections[1].results.count == 2)
     }
 
+    @Test func `pinning a suggested app backfills from the next eligible app at the bottom`() async {
+        let now = Date(timeIntervalSince1970: 0)
+        let apps = (0..<7).map { index in
+            SearchResult.fixture(
+                title: "App \(index)", section: .applications, kind: .application, source: "application"
+            )
+        }
+        let usage = UsageSnapshot(
+            entries: Dictionary(
+                uniqueKeysWithValues: apps.enumerated().map { index, app in
+                    (
+                        app.id,
+                        UsageSnapshot.Entry(
+                            count: 10 - index,
+                            lastUsed: now.addingTimeInterval(-TimeInterval(index) * 3600)
+                        )
+                    )
+                }
+            )
+        )
+
+        let initialUseCase = makeUseCase(commands: [], applications: apps, usage: usage)
+        let initialSections = await initialUseCase(SearchQuery(raw: ""))
+        #expect(initialSections[0].section == .suggestions)
+        #expect(initialSections[0].results.map(\.title) == [
+            "App 0", "App 1", "App 2", "App 3", "App 4"
+        ])
+
+        // Pin App 2 (which was at index 2 of suggestions)
+        let pinnedUseCase = makeUseCase(
+            commands: [],
+            applications: apps,
+            usage: usage,
+            pinned: [PinnedResult(id: apps[2].id, title: "App 2", pinOrder: 0)]
+        )
+        let pinnedSections = await pinnedUseCase(SearchQuery(raw: ""))
+
+        #expect(pinnedSections.map(\.section) == [.favorites, .suggestions, .applications])
+        #expect(pinnedSections[0].results.map(\.title) == ["App 2"])
+        #expect(pinnedSections[1].results.map(\.title) == [
+            "App 0", "App 1", "App 3", "App 4", "App 5"
+        ])
+    }
+
     @Test func `matches commands and applications in section order`() async {
         let useCase = makeUseCase(
             commands: [.fixture(title: "Open Safari Tab")],
@@ -165,13 +209,99 @@ struct SearchUseCaseTests {
             commands: [command],
             applications: [],
             files: [file],
-            isFilesEnabled: { false }
+            preferences: { Preferences(fileSearchEnabled: false) }
         )
 
         let sections = await useCase(SearchQuery(raw: "saf"))
 
         #expect(sections.map(\.section) == [.commands, .fallback])
         #expect(!sections.contains(where: { $0.section == .files }))
+    }
+
+    @Test func `a longer suggestion window includes older apps`() async {
+        let old = SearchResult.fixture(
+            title: "Old", section: .applications, kind: .application, source: "application"
+        )
+        let now = Date(timeIntervalSince1970: 0)
+        let usage = UsageSnapshot(
+            entries: [old.id: .init(count: 2, lastUsed: now.addingTimeInterval(-10 * 86_400))]
+        )
+        let useCase = makeUseCase(
+            commands: [],
+            applications: [old],
+            usage: usage,
+            preferences: { Preferences(suggestionWindowDays: 30) }
+        )
+
+        let sections = await useCase(SearchQuery(raw: ""))
+
+        #expect(sections.map(\.section) == [.suggestions])
+        #expect(sections[0].results.map(\.title) == ["Old"])
+    }
+
+    @Test func `pinned application moves to favorites and leaves applications`() async {
+        let safari = SearchResult.fixture(
+            title: "Safari", section: .applications, kind: .application, source: "application"
+        )
+        let notes = SearchResult.fixture(
+            title: "Notes", section: .applications, kind: .application, source: "application"
+        )
+        let useCase = makeUseCase(
+            commands: [],
+            applications: [safari, notes],
+            pinned: [PinnedResult(id: safari.id, title: "Safari", pinOrder: 0)]
+        )
+
+        let sections = await useCase(SearchQuery(raw: ""))
+
+        #expect(sections.map(\.section) == [.favorites, .applications])
+        #expect(sections[0].results.map(\.title) == ["Safari"])
+        #expect(sections[1].results.map(\.title) == ["Notes"])
+    }
+
+    @Test func `pinned file appears at root with its stored path`() async {
+        let url = URL(fileURLWithPath: "/tmp/report.pdf")
+        let pin = PinnedResult(
+            id: .init(source: "file", raw: url.path),
+            title: "report.pdf",
+            subtitle: "/tmp",
+            fileURL: url,
+            pinOrder: 0
+        )
+        let useCase = makeUseCase(commands: [], applications: [], pinned: [pin])
+
+        let sections = await useCase(SearchQuery(raw: ""))
+
+        #expect(sections.map(\.section) == [.favorites])
+        #expect(sections[0].results.first?.kind == .file)
+        #expect(sections[0].results.first?.primaryAction == .openFile(url))
+    }
+
+    @Test func `pinned file is hidden when the query does not match`() async {
+        let url = URL(fileURLWithPath: "/tmp/report.pdf")
+        let pin = PinnedResult(id: .init(source: "file", raw: url.path), title: "report.pdf", fileURL: url, pinOrder: 0)
+        let useCase = makeUseCase(commands: [], applications: [], pinned: [pin])
+
+        let sections = await useCase(SearchQuery(raw: "safari"))
+
+        #expect(!sections.contains(where: { $0.section == .favorites }))
+    }
+
+    @Test func `pinned application matching a query is not duplicated`() async {
+        let safari = SearchResult.fixture(
+            title: "Safari", section: .applications, kind: .application, source: "application"
+        )
+        let useCase = makeUseCase(
+            commands: [],
+            applications: [safari],
+            pinned: [PinnedResult(id: safari.id, title: "Safari", pinOrder: 0)]
+        )
+
+        let sections = await useCase(SearchQuery(raw: "saf"))
+
+        #expect(sections.first?.section == .favorites)
+        #expect(sections.first?.results.count == 1)
+        #expect(!sections.contains(where: { $0.section == .applications }))
     }
 
     @Test func `fallback contains calculation and web search when applicable`() async {
@@ -195,15 +325,16 @@ struct SearchUseCaseTests {
         applications: [SearchResult],
         files: [SearchResult] = [],
         usage: UsageSnapshot = .empty,
-        isFilesEnabled: (@Sendable () async -> Bool)? = nil
+        pinned: [PinnedResult] = [],
+        preferences: (@Sendable () async -> Preferences)? = nil
     ) -> SearchUseCase {
         SearchUseCase(
             commands: StubCommandProvider(commands: commands),
             applications: StubApplicationCatalog(apps: applications),
             files: StubFileSearch(files: files),
-            usage: StubUsageStore(snapshotValue: usage),
+            usage: StubUsageStore(snapshotValue: usage, pins: pinned),
             clock: FixedClock(now: Date(timeIntervalSince1970: 0)),
-            isFilesEnabled: isFilesEnabled
+            preferences: preferences
         )
     }
 }
@@ -230,12 +361,23 @@ private struct StubFileSearch: FileSearching {
 
 private struct StubUsageStore: UsageStoring {
     let snapshotValue: UsageSnapshot
+    var pins: [PinnedResult] = []
 
     func snapshot() async -> UsageSnapshot {
         snapshotValue
     }
 
     func record(_ id: SearchResult.ID, at date: Date) async {}
+
+    func pinned() async -> [PinnedResult] {
+        pins
+    }
+
+    func setPinned(_ result: SearchResult, isPinned: Bool, at date: Date) async {}
+
+    func clearPins() async {}
+
+    func reset() async {}
 }
 
 private struct FixedClock: RillDomain.Clock {

@@ -45,14 +45,21 @@ public final class CarbonHotkeyManager: HotkeyRegistering {
     }
 
     public nonisolated func register(
-        _ hotkey: Hotkey
+        _ hotkey: Hotkey,
+        handler: (@MainActor () -> Void)? = nil
     ) async throws(HotkeyError) -> HotkeyToken {
-        switch await MainActor.run(body: { self.registerOnMain(hotkey) }) {
+        switch await MainActor.run(body: { self.registerOnMain(hotkey, handler: handler) }) {
         case .success(let token):
             return token
         case .failure(let error):
             throw error
         }
+    }
+
+    public nonisolated func register(
+        _ hotkey: Hotkey
+    ) async throws(HotkeyError) -> HotkeyToken {
+        try await register(hotkey, handler: nil)
     }
 
     public nonisolated func unregister(_ token: HotkeyToken) async {
@@ -61,7 +68,10 @@ public final class CarbonHotkeyManager: HotkeyRegistering {
         }
     }
 
-    private func registerOnMain(_ hotkey: Hotkey) -> Result<HotkeyToken, HotkeyError> {
+    private func registerOnMain(
+        _ hotkey: Hotkey,
+        handler: (@MainActor () -> Void)? = nil
+    ) -> Result<HotkeyToken, HotkeyError> {
         do {
             try installEventHandler()
         } catch {
@@ -86,7 +96,7 @@ public final class CarbonHotkeyManager: HotkeyRegistering {
         }
 
         registrations[token] = ref
-        Self.handlerTable.handlers[token.rawValue] = onTrigger
+        Self.handlerTable.handlers[token.rawValue] = handler ?? onTrigger
         return .success(token)
     }
 

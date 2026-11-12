@@ -25,6 +25,25 @@ struct PreferencesTests {
         #expect(prefs.hotkey == .default)
         #expect(prefs.fileSearchEnabled == true)
         #expect(prefs.fileSearchScope == .homeDirectory)
+        #expect(prefs.suggestionWindowDays == 7)
+        #expect(prefs.applicationsPerPage == 5)
+        #expect(prefs.statusBarEnabled == true)
+        #expect(prefs.showKeyboardHints == true)
+        #expect(prefs.hasCompletedOnboarding == false)
+    }
+
+    @Test func `sanitizing replaces out-of-range choices with defaults`() {
+        let prefs = Preferences(suggestionWindowDays: 90, applicationsPerPage: 10)
+        let sanitized = prefs.sanitized()
+
+        #expect(sanitized.suggestionWindowDays == 7)
+        #expect(sanitized.applicationsPerPage == 5)
+    }
+
+    @Test func `sanitizing keeps supported choices`() {
+        let prefs = Preferences(suggestionWindowDays: 30, applicationsPerPage: 3)
+
+        #expect(prefs.sanitized() == prefs)
     }
 
     @Test func `preferences store saves and loads roundtrip`() async {
@@ -36,7 +55,8 @@ struct PreferencesTests {
         let updated = Preferences(
             hotkey: customHotkey,
             fileSearchEnabled: false,
-            fileSearchScope: .homeDirectory
+            fileSearchScope: .homeDirectory,
+            hasCompletedOnboarding: true
         )
 
         await store.save(updated)
@@ -44,5 +64,6 @@ struct PreferencesTests {
         #expect(loaded == updated)
         #expect(loaded.hotkey.keyCode == 12)
         #expect(loaded.fileSearchEnabled == false)
+        #expect(loaded.hasCompletedOnboarding == true)
     }
 }

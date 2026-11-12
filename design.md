@@ -111,8 +111,8 @@ struct SearchResult: Identifiable, Sendable, Hashable {
 Fixed order, always rendered in this order even when empty (empty sections are dropped, order is not re-sorted):
 
 1. `favorites` — user-pinned results.
-2. `suggestions` — apps used within the last 7 days, most used first, capped at 5 (see §5.2).
-3. `applications` — installed apps, shown 5 per page in the palette.
+2. `suggestions` — apps used inside the configured window (default 7 days), most used first, capped at 5 (see §5.2).
+3. `applications` — installed apps, shown in pages of the configured size (default 5).
 4. `commands` — built-in and app commands matching the query; a fixed chip row in the root layout.
 5. `files` — Spotlight metadata matches.
 6. `fallback` — "Search the web for …", "Open …", "Calculate …".
@@ -174,22 +174,24 @@ These are release-build gates, checked in `PerformanceTests` and by hand with In
 ┌──────────────────────────────────────────────┐
 │  ⌕  query text                               │  search field, 40 pt
 ├──────────────────────────────────────────────┤
-│  SUGGESTED ──────────────────────────────    │  ≤ 5 apps used in the last 7 days
+│  SUGGESTED ──────────────────────────────    │  ≤ 5 apps in the configured window
 │  ▸ Safari                            ⌘1     │  selected: tint + accent border
-│  ALL APPS ───────────────────────────────    │  catalogue, 5 per page
+│  ALL APPS ───────────────────────────────    │  catalogue, configured page size
 │    Notes                              ⌘2     │
 │    …                                         │
 │                         ‹  1/10  ›           │  pager, only when > 1 page
 ├──────────────────────────────────────────────┤
-│  [⚙ Open Settings] [⌂ Home] [▦ Applications] │  command chip row, fixed
+│  [⚙ Rill Settings] [⌂ Home] [▦ Applications] │  command chip row, fixed
 └──────────────────────────────────────────────┘
 ```
 
 - Row height 34 pt, icon 16×16, title 13.5 pt medium, subtitle 11 pt secondary, right-side ⌘N hint.
-- Root layout: `suggestions` rows, then `applications` paged five at a time, then a fixed chip row of commands below the scrolling list.
+- Root layout: `suggestions` rows, then `applications` paged by the configured size (default five), then a fixed chip row of commands below the scrolling list.
 - Pager: `‹ 1/N ›`, clickable; Page Up/Page Down also change the page. Walking the selection off an applications page edge flips the page.
-- Suggestions come from app activations Rill records itself (`NSWorkspace.didActivateApplicationNotification`, see `architecture.md` ADR-008), window 7 days, most used first, capped at 5.
-- Typed query: suggestions disappear; applications stay paged at 5; commands render as ordinary rows in the list.
+- `⌘P` pins or unpins the selected row (right-click offers the same). Pinned apps, commands and files move to the `favorites` section at the top; while a query is typed, only pins whose title matches appear there. Pinned files carry their path, so they survive relaunch; a deleted file is hidden until it returns.
+- Suggestions come from app activations Rill records itself (`NSWorkspace.didActivateApplicationNotification`, see `architecture.md` ADR-008), most used first, capped at 5. The window is a preference: 7, 14 or 30 days (default 7).
+- Typed query: suggestions disappear; applications stay paged; commands render as ordinary rows in the list.
+- `⌘,` hides the palette and opens Settings. The root chip row shows the three key hints (`↑↓ move`, `↵ open`, `⌘, settings`) right-aligned; the hint row can be hidden in Settings → General.
 - Keyboard selection is the only selection. Hover moves selection only if the pointer actually moves (avoids the list jumping under a resting cursor).
 - Empty query → suggestions + applications + commands; never an empty palette.
 - No results → a `fallback` section, never an empty state string.
@@ -215,7 +217,7 @@ Observable result, which is the acceptance test:
 - The launcher never appears in ⌘Tab.
 - Previous app's title bar dims (it lost key), but it did not lose active status.
 
-**The one exception: Settings.** A preferences window needs a real menu bar and activation. So activation policy is refcounted, not toggled:
+**The one exception: real windows (Settings, onboarding, About).** A preferences or welcome window needs a real menu bar and activation. So activation policy is refcounted, not toggled:
 
 ```swift
 // RillPlatform/System/ActivationPolicyController.swift
@@ -258,7 +260,29 @@ A keyboard launcher must be usable by VoiceOver and Switch Control:
 
 ### 5.5 Preferences (separate window)
 
-A normal `Settings` scene: hotkey recorder, search-scope toggles (files: on/off + folders), appearance, launch at login (`SMAppService.mainApp`), permissions status. No preferences inside the palette. Opening it acquires the `.regular` policy override (§5.3) and releases it on close.
+A dedicated `NSWindow` owned by `SettingsWindowController` (never a SwiftUI `Settings` scene — scenes own activation). Four tabs, 560×420:
+
+| Tab | Contents |
+| --- | --- |
+| **General** | Hotkey recorder with inline conflict error, menu bar icon toggle, launch at login (`SMAppService.mainApp`), keyboard hint toggle, reset to defaults (favorites and usage survive), show the welcome window again. |
+| **Search** | File search on/off, current scope (home folder), suggestion window (7/14/30 days), applications per page (3/5/7). |
+| **Data** | Reset usage history (confirmation required), clear pinned items only, reveal the usage JSON in Finder. |
+| **About** | Version and build, repository link, Accessibility permission status and a deep link to the exact System Settings pane. |
+
+Every change applies immediately: the palette re-runs its current query, the status item installs or removes itself, and the hotkey re-registers. A failed hotkey registration keeps the previous shortcut live and shows the error in place — never a silent failure. No preferences live inside the palette. Opening the window acquires the `.regular` policy override (§5.3) and releases it on close.
+
+`⌘,` from the palette hides it and opens this window. The built-in `Rill Settings` command (the ⚙ chip in the root layout) and the menu bar item open the same window; none of them launch macOS System Settings. Only the Accessibility row in About links there, because that permission lives in the system.
+
+### 5.6 First run
+
+On the first launch after install, `OnboardingWindowController` shows before anything else:
+
+- Title, one sentence on what the palette does, and the hotkey recorder pre-filled with `⌥Space`.
+- If registration failed (another app owns the shortcut), the conflict warning is visible here, not buried in Settings.
+- Three key hints: type to search, `↵` open, `esc` close.
+- **Get Started** closes the window and opens the palette once, so the first interaction is a real search.
+
+Dismissing with the close button also counts as completed: the welcome window must never reappear on every launch. The completion flag lives in `Preferences`. Like Settings, this window is one of the few allowed to borrow `.regular` (§5.3); it hands the policy back on close.
 
 ## 6. Permissions, distribution, and the constraint that shapes the design
 

@@ -14,4 +14,11 @@ public enum ActionDescriptor: Sendable, Hashable {
 
     /// Copies text to the system pasteboard.
     case copyToPasteboard(String)
+
+    /// Opens this app's own Settings window. Handled by the app layer, which
+    /// owns the window; a system action performer cannot show it.
+    case openSettings
+
+    /// Opens the Clipboard History palette mode.
+    case openClipboardHistory
 }

@@ -12,19 +12,29 @@ public struct CommandRegistry: CommandProviding {
     private static func builtIns() -> [SearchResult] {
         var results: [SearchResult] = []
 
-        if let settingsURL = URL(string: "x-apple.systempreferences:") {
-            results.append(
-                SearchResult(
-                    id: .init(source: "command", raw: "open-settings"),
-                    title: String(localized: "Open Settings"),
-                    subtitle: String(localized: "System Settings"),
-                    icon: .systemSymbol("gearshape"),
-                    section: .commands,
-                    kind: .command,
-                    primaryAction: .openURL(settingsURL)
-                )
+        results.append(
+            SearchResult(
+                id: .init(source: "command", raw: "open-settings"),
+                title: String(localized: "Rill Settings"),
+                subtitle: String(localized: "Preferences"),
+                icon: .systemSymbol("gearshape"),
+                section: .commands,
+                kind: .command,
+                primaryAction: .openSettings
             )
-        }
+        )
+
+        results.append(
+            SearchResult(
+                id: .init(source: "command", raw: "open-clipboard"),
+                title: String(localized: "Clipboard History"),
+                subtitle: String(localized: "Browse copied text, code, colors, and images"),
+                icon: .systemSymbol("doc.on.clipboard"),
+                section: .commands,
+                kind: .command,
+                primaryAction: .openClipboardHistory
+            )
+        )
 
         results.append(
             SearchResult(

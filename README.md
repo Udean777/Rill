@@ -22,7 +22,7 @@ Rill is a native macOS launcher — press **⌥Space**, type, hit Enter. It find
 │   …                                          │
 │                          ‹  1/10  ›          │
 ├──────────────────────────────────────────────┤
-│ [⚙ Open Settings] [⌂ Home] [▦ Applications]  │  fixed command chips
+│ [⚙ Rill Settings] [⌂ Home] [▦ Applications]  │  fixed command chips
 └──────────────────────────────────────────────┘
 ```
 
@@ -37,16 +37,19 @@ Rill is a native macOS launcher — press **⌥Space**, type, hit Enter. It find
 | **Apps, commands and files** | One search field over installed applications, built-in commands, and Spotlight metadata. Results are grouped into fixed sections, never re-sorted across boundaries. |
 | **Suggested apps** | The five apps you used most in the last seven days, surfaced first on an empty field. Usage is recorded from app activations Rill observes itself — no private APIs, no permissions. |
 | **Paged application browser** | All apps are shown five per page with a `‹ 1/N ›` pager. Page Up / Page Down flip pages; arrow keys flip a page when the selection walks off its edge. |
-| **Command chip row** | Built-in commands (`Open Settings`, `Open Home Folder`, `Open Applications`) stay pinned under the list in the root layout — always one click or arrow-press away. |
+| **Command chip row** | Built-in commands (`Rill Settings`, `Open Home Folder`, `Open Applications`) stay pinned under the list in the root layout — always one click or arrow-press away. |
 | **Frecency ranking** | Results blend match quality with usage frequency and recency (`exp(-Δdays/30) · log1p(count)`). Pinned rows win. Stable tie-breaks stop results from jittering between keystrokes. |
-| **Keyboard-first** | `↑` `↓` `Tab` `⇧Tab` `⌃P` `⌃N` to move, `Enter` to run, `⌘1…⌘9` for the first nine rows, `Esc` to clear or dismiss, Page Up/Down for pages. |
+| **Pinned favorites** | `⌘P` (or right-click) pins the selected app, command or file into a Favorites section that survives relaunch. A typed query only shows pins that match it. |
+| **Keyboard-first** | `↑` `↓` `Tab` `⇧Tab` `⌃P` `⌃N` to move, `Enter` to run, `⌘1…⌘9` for the first nine rows, `⌘P` to pin, `Esc` to clear or dismiss, Page Up/Down for pages. |
 | **Fuzzy matching** | Case- and diacritic-insensitive: exact, prefix, word-boundary, substring, then subsequence with a gap penalty. |
 | **Calculator fallback** | Type `12 * 4`, get `48` and copy it. No extra app, no network. |
 | **Web search fallback** | Anything else offers “Search Google for …” as the last section. |
 | **File search** | `NSMetadataQuery` over your home directory, debounced and cancellable, toggleable in Settings. |
-| **Custom hotkey** | A recorder in Settings rebinds the global hotkey through Carbon `RegisterEventHotKey` — no Accessibility or Input Monitoring prompt. |
+| **Custom hotkey** | A recorder in Settings rebinds the global hotkey through Carbon `RegisterEventHotKey` — no Accessibility or Input Monitoring prompt. A shortcut already taken by another app is rejected inline, and the previous one stays live. |
+| **Settings window** | Four tabs — General, Search, Data, About — over hotkey, menu bar icon, launch at login, keyboard hints, reset to defaults, welcome replay, file search, suggestion window, page size, usage reset, favorite clearing, build info and permissions. Every change applies immediately; `⌘,` or the ⚙ chip opens it. |
+| **First-run welcome** | On first launch, a short window shows the hotkey, warns immediately if another app already owns it, and opens the palette once when dismissed. It never appears again. |
 | **Launch at login** | `SMAppService`-backed toggle in Settings. |
-| **Status bar item** | A menu bar entry as a second way in; the palette itself is still summonable anywhere. |
+| **Status bar item** | A menu bar entry as a second way in, toggleable in Settings; the palette itself is still summonable anywhere. |
 | **Accessibility** | Every row has a label and selection trait, the pager announces “Page X of Y”, focus stays on the search field, and reduced-motion disables the show/hide animation. |
 
 ## Tech stack
@@ -104,7 +107,7 @@ These are product requirements, not preferences:
 # build
 xcodebuild -scheme Rill -destination 'platform=macOS' build
 
-# unit tests (52 tests, 12 suites)
+# unit tests (60 tests, 12 suites)
 xcodebuild -scheme Rill -destination 'platform=macOS' test
 
 # open in Xcode

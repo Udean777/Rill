@@ -69,6 +69,14 @@ private actor RecordingUsageStore: UsageStoring {
     func record(_ id: SearchResult.ID, at date: Date) async {
         recorded.append(id)
     }
+
+    func pinned() async -> [PinnedResult] { [] }
+
+    func setPinned(_ result: SearchResult, isPinned: Bool, at date: Date) async {}
+
+    func clearPins() async {}
+
+    func reset() async {}
 }
 
 private struct FixedClock: RillDomain.Clock {

@@ -8,7 +8,7 @@ public struct SearchUseCase: Sendable {
     private let files: FileSearching?
     private let usage: UsageStoring
     private let clock: Clock
-    private let isFilesEnabled: (@Sendable () async -> Bool)?
+    private let preferences: (@Sendable () async -> Preferences)?
 
     public init(
         commands: CommandProviding,
@@ -16,38 +16,54 @@ public struct SearchUseCase: Sendable {
         files: FileSearching? = nil,
         usage: UsageStoring,
         clock: Clock,
-        isFilesEnabled: (@Sendable () async -> Bool)? = nil
+        preferences: (@Sendable () async -> Preferences)? = nil
     ) {
         self.commands = commands
         self.applications = applications
         self.files = files
         self.usage = usage
         self.clock = clock
-        self.isFilesEnabled = isFilesEnabled
+        self.preferences = preferences
     }
 
     public func callAsFunction(_ query: SearchQuery) async -> [RankedSection] {
         let allCommands = commands.commands
         let snapshot = await usage.snapshot()
+        let currentPreferences = await preferences?() ?? .default
+        let pins = await usage.pinned()
 
         let candidates: [SearchResult]
         if query.mode == .root {
-            // Queryless field: suggested apps first, then the rest of the
+            // Queryless field: favourites, suggested apps, the rest of the
             // catalogue, then commands — never an empty palette (design.md §5.2).
             let allApplications = await applications.applications()
-            let suggestedIDs = suggestedApplicationIDs(usage: snapshot)
-            let suggested = allApplications
-                .filter { suggestedIDs.contains($0.id) }
-                .map { $0.withSection(.suggestions) }
-            let remaining = allApplications.filter { !suggestedIDs.contains($0.id) }
-            candidates = suggested + remaining + allCommands
-        } else {
-            let filesAllowed: Bool
-            if let isFilesEnabled {
-                filesAllowed = await isFilesEnabled()
-            } else {
-                filesAllowed = files != nil
+            let favorites = favoriteResults(
+                from: pins,
+                applications: allApplications,
+                commands: allCommands
+            )
+            let favoriteIDs = Set(favorites.map(\.id))
+            let applicationsByID = Dictionary(
+                uniqueKeysWithValues: allApplications.map { ($0.id, $0) }
+            )
+            let suggestedIDs = suggestedApplicationIDs(
+                usage: snapshot,
+                windowDays: currentPreferences.suggestionWindowDays,
+                excluding: favoriteIDs,
+                availableIDs: Set(applicationsByID.keys)
+            )
+            let suggestedIDSet = Set(suggestedIDs)
+            let suggested = suggestedIDs.compactMap { id in
+                applicationsByID[id]?.withSection(.suggestions)
             }
+            let remaining = allApplications.filter {
+                !favoriteIDs.contains($0.id) && !suggestedIDSet.contains($0.id)
+            }
+            candidates =
+                favorites + suggested + remaining
+                + allCommands.filter { !favoriteIDs.contains($0.id) }
+        } else {
+            let filesAllowed = currentPreferences.fileSearchEnabled && files != nil
 
             async let fetchedApps = applications.applications()
             async let fetchedFiles: [SearchResult] = {
@@ -57,32 +73,96 @@ public struct SearchUseCase: Sendable {
 
             let (allApplications, fileResults) = await (fetchedApps, fetchedFiles)
 
+            // Pinned results only join a typed query when they match it.
+            let favorites = favoriteResults(
+                from: pins,
+                applications: allApplications,
+                commands: allCommands
+            ).filter { MatchScore.score(title: $0.title, query: query) > 0 }
+            let favoriteIDs = Set(favorites.map(\.id))
+
             let matchingStatic = (allCommands + allApplications).filter { result in
-                MatchScore.score(title: result.title, query: query) > 0
+                !favoriteIDs.contains(result.id)
+                    && MatchScore.score(title: result.title, query: query) > 0
             }
 
-            candidates = matchingStatic + fileResults + fallbackResults(for: query)
+            candidates =
+                favorites + matchingStatic
+                + fileResults.filter { !favoriteIDs.contains($0.id) }
+                + fallbackResults(for: query)
         }
 
         return Ranking.rank(candidates, query: query, usage: snapshot, now: clock.now)
     }
 
+    /// Rebuilds pinned rows: live catalogue data for apps and commands, the
+    /// stored path for files.
+    private func favoriteResults(
+        from pins: [PinnedResult],
+        applications: [SearchResult],
+        commands: [SearchResult]
+    ) -> [SearchResult] {
+        let applicationsByID = Dictionary(
+            uniqueKeysWithValues: applications.map { ($0.id, $0) }
+        )
+        let commandsByID = Dictionary(uniqueKeysWithValues: commands.map { ($0.id, $0) })
+
+        return pins.compactMap { pin in
+            if let fileURL = pin.fileURL {
+                return SearchResult(
+                    id: pin.id,
+                    title: pin.title,
+                    subtitle: pin.subtitle,
+                    icon: .fileURL(fileURL),
+                    section: .favorites,
+                    kind: .file,
+                    primaryAction: .openFile(fileURL)
+                )
+            }
+            let live = applicationsByID[pin.id] ?? commandsByID[pin.id]
+            return live?.withSection(.favorites)
+        }
+    }
+
     /// Applications used inside the suggestion window, most used first, capped.
-    private func suggestedApplicationIDs(usage: UsageSnapshot) -> Set<SearchResult.ID> {
-        let cutoff = clock.now.addingTimeInterval(-Self.suggestionWindow)
+    private func suggestedApplicationIDs(
+        usage: UsageSnapshot,
+        windowDays: Int,
+        excluding: Set<SearchResult.ID> = [],
+        availableIDs: Set<SearchResult.ID>? = nil
+    ) -> [SearchResult.ID] {
+        let cutoff = clock.now.addingTimeInterval(-TimeInterval(windowDays) * 86_400)
         let recent = usage.entries.filter { id, entry in
-            id.source == "application" && entry.lastUsed >= cutoff
+            guard id.source == "application",
+                  entry.lastUsed >= cutoff,
+                  !excluding.contains(id) else {
+                return false
+            }
+            if let availableIDs {
+                return availableIDs.contains(id)
+            }
+            return true
         }
         let ranked = recent.sorted { lhs, rhs in
+            let leftScore = Frecency.score(lhs.value, now: clock.now)
+            let rightScore = Frecency.score(rhs.value, now: clock.now)
+            if leftScore != rightScore {
+                return leftScore > rightScore
+            }
             if lhs.value.count != rhs.value.count {
                 return lhs.value.count > rhs.value.count
             }
-            return lhs.value.lastUsed > rhs.value.lastUsed
+            if lhs.value.lastUsed != rhs.value.lastUsed {
+                return lhs.value.lastUsed > rhs.value.lastUsed
+            }
+            if lhs.key.source != rhs.key.source {
+                return lhs.key.source < rhs.key.source
+            }
+            return lhs.key.raw < rhs.key.raw
         }
-        return Set(ranked.prefix(Self.suggestionLimit).map(\.key))
+        return Array(ranked.prefix(Self.suggestionLimit).map { $0.key })
     }
 
-    private static let suggestionWindow: TimeInterval = 7 * 24 * 60 * 60
     private static let suggestionLimit = 5
 
     private func fallbackResults(for query: SearchQuery) -> [SearchResult] {
