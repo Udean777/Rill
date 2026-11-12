@@ -7,23 +7,25 @@ struct ResultRow: View {
     let result: SearchResult
     let shortcutNumber: Int?
     let isSelected: Bool
+    let isPinned: Bool
     let action: () -> Void
+    let onTogglePin: () -> Void
 
     @State private var isHovered = false
 
     var body: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: 10) {
             icon
-                .frame(width: 16, height: 16)
+                .frame(width: 18, height: 18)
 
-            VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 8) {
                 Text(result.title)
-                    .font(.system(size: 13.5, weight: .medium))
+                    .font(.system(size: 14, weight: isSelected ? .medium : .regular))
                     .lineLimit(1)
 
                 if let subtitle = result.subtitle {
                     Text(subtitle)
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -31,22 +33,27 @@ struct ResultRow: View {
 
             Spacer(minLength: 0)
 
+            if isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+
             if let shortcutNumber {
                 Text("⌘\(shortcutNumber)")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 10)
         .frame(height: 34)
         .foregroundStyle(.primary)
-        // Tint + accent border instead of a solid fill: keeps title contrast
-        // above 4.5:1 while the 1 pt accent border carries the selection state.
         .background {
             RoundedRectangle(cornerRadius: 6)
                 .fill(
                     isSelected
-                        ? Color.accentColor.opacity(0.16)
+                        ? Color.accentColor.opacity(0.14)
                         : (isHovered ? Color.primary.opacity(0.06) : Color.clear)
                 )
         }
@@ -54,10 +61,16 @@ struct ResultRow: View {
             RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(isSelected ? Color.accentColor.opacity(0.85) : .clear, lineWidth: 1)
         }
+        .animation(.spring(response: 0.18, dampingFraction: 0.85), value: isSelected)
         .padding(.horizontal, 6)
         .contentShape(Rectangle())
         .onTapGesture(perform: action)
         .onHover { isHovered = $0 }
+        .contextMenu {
+            Button(isPinned ? "Unpin" : "Pin") {
+                onTogglePin()
+            }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -72,7 +85,7 @@ struct ResultRow: View {
                 .scaledToFit()
                 .frame(width: 16, height: 16)
         case .fileURL(let url):
-            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+            Image(nsImage: IconCache.shared.image(for: url))
                 .resizable()
                 .scaledToFit()
         }
@@ -84,6 +97,9 @@ struct ResultRow: View {
             components.append(subtitle)
         }
         components.append(result.section.localizedTitle)
+        if isPinned {
+            components.append("Pinned")
+        }
         if let shortcutNumber {
             components.append("Command \(shortcutNumber)")
         }

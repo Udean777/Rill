@@ -11,6 +11,7 @@ public final class AppUsageTracker {
     private let clock: Clock
     private let ownBundleID = Bundle.main.bundleIdentifier
     private var observation: Task<Void, Never>?
+    private var lastRecordedBundleID: String?
 
     public init(usage: UsageStoring, clock: Clock) {
         self.usage = usage
@@ -41,6 +42,11 @@ public final class AppUsageTracker {
             let bundleID = application.bundleIdentifier,
             bundleID != ownBundleID
         else { return }
+
+        // Repeated notifications for the app that is already frontmost are not
+        // another use; skip them so switching back and forth is the only count.
+        guard bundleID != lastRecordedBundleID else { return }
+        lastRecordedBundleID = bundleID
 
         let id = SearchResult.ID(source: "application", raw: bundleID)
         let now = clock.now

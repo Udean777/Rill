@@ -69,8 +69,9 @@ Rill/
 │   ├── Usage/                  JSONUsageStore (actor)
 │   └── Preferences/            UserDefaultsPreferencesStore
 ├── RillUI/                     .framework
-│   ├── Palette/                PaletteView, PaletteViewModel, SearchField, ResultRow, SectionHeader
-│   └── Settings/               SettingsView, HotkeyRecorderView
+│   ├── Palette/                PaletteView, PaletteViewModel, ResultRow, SectionHeader, EmptyResultView
+│   ├── Settings/               SettingsView, HotkeyRecorderView
+│   └── Onboarding/             OnboardingView
 ├── RillPlatform/               .framework
 │   ├── Window/                 PalettePanel, PaletteWindowController, PanelPositioner
 │   ├── Hotkey/                 CarbonHotkeyManager
@@ -318,7 +319,7 @@ final class ActivationPolicyController {
 }
 ```
 
-Only `SettingsWindowController` and the About panel call `acquireRegular()`/`releaseRegular()`. Nothing else in the codebase may touch `NSApp.setActivationPolicy` or `NSApp.activate`. This mirrors Raycast's own `NSApplication+ActivationPolicy.swift` (`makeAccessoryPolicyOverrideToken(restoreRegularOnRelease:)`), which exists for the same reason.
+Only `SettingsWindowController`, `OnboardingWindowController` and the About panel call `acquireRegular()`/`releaseRegular()`. Nothing else in the codebase may touch `NSApp.setActivationPolicy` or `NSApp.activate`. This mirrors Raycast's own `NSApplication+ActivationPolicy.swift` (`makeAccessoryPolicyOverrideToken(restoreRegularOnRelease:)`), which exists for the same reason.
 
 Why not just call `setActivationPolicy(.accessory)` at launch instead of using `LSUIElement`? Because it must be true _before_ the app finishes registering with the window server; doing it later leaves a one-frame Dock flash at login. `LSUIElement` is the declarative form of the same fact. (We may still call `setActivationPolicy(.accessory)` defensively in `applicationDidFinishLaunching` to recover from a stale override — idempotent and cheap.)
 
@@ -354,11 +355,9 @@ The handler is a C function pointer installed with `InstallEventHandler`; it may
 public enum ActionDescriptor: Sendable, Hashable {
     case openApplication(bundleID: String)
     case openURL(URL)
-    case revealInFinder(URL)
     case openFile(URL)
     case copyToPasteboard(String)
-    case runSystemCommand(SystemCommandID)
-    case custom(id: String)   // resolved by the registry; extension seam
+    case openSettings   // this app's Settings window; the app layer routes it
 }
 ```
 
@@ -415,7 +414,7 @@ sequenceDiagram
 
 | Data                                                | Store                                                                                                    | Location                                        |
 | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Preferences (hotkey, scopes, appearance)            | `UserDefaults`, behind `PreferencesStoring` port                                                         | standard defaults domain                        |
+| Preferences (hotkey, file search, palette layout)   | `UserDefaults`, behind `PreferencesStoring` port                                                         | standard defaults domain                        |
 | Frecency (id → count, lastUsed, favorite, pinOrder) | Single JSON snapshot, atomic write-through on every record (`write(to:options:.atomic)`) | `~/Library/Application Support/Rill/usage.json` |
 | Application catalogue                               | Derived, rebuilt at launch + FSEvents                                                                    | in memory only                                  |
 
@@ -483,6 +482,7 @@ Each is a deliberate deferral with an upgrade path, and each appears as a `short
 | Application scan one level per root                       | Missing apps reported inside bundle-style subdirectories                                          |
 | No extension/plugin seam beyond `ActionDescriptor.custom` | When a second-party command source is needed                                                      |
 | Single home-directory scope for file search               | When custom folder scopes are requested by users                                                  |
+| File existence checked per pin on every search            | Pin counts reach the hundreds, or profile shows measurable cost                                  |
 | English-only strings                                      | Before any non-English user feedback — though all strings already go through `String(localized:)` |
 | No crash reporting                                        | Public distribution                                                                               |
 

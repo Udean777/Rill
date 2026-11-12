@@ -15,14 +15,17 @@ Rill is a native macOS launcher — press **⌥Space**, type, hit Enter. It find
 
 ```
 ┌ ⌕ Search ────────────────────────────────────┐
-│ SUGGESTED ───────────────────────────────    │  apps used in the last 7 days
-│   ▸ Safari                            ⌘1    │
-│ ALL APPS ────────────────────────────────    │  five per page
-│   Notes                               ⌘2    │
+│ FAVORITES ─────────────────────────────────  │  pinned apps, files & commands
+│   ★ Safari                            ⌘1    │
+│ SUGGESTED ─────────────────────────────────  │  frequently used in the window
+│   Terminal                            ⌘2    │
+│ ALL APPS ──────────────────────────────────  │  horizontal pagination (← / →)
+│   Notes                               ⌘3    │
 │   …                                          │
-│                          ‹  1/10  ›          │
+│ COMMANDS ──────────────────────────────────  │  built-in actions
+│   Rill Settings                              │
 ├──────────────────────────────────────────────┤
-│ [⚙ Open Settings] [⌂ Home] [▦ Applications]  │  fixed command chips
+│ ⏎ Open   ⌘P Pin   ⌘⌫ Clear     [📋 Clipboard] │  compact footer & pager ‹ 1/10 ›
 └──────────────────────────────────────────────┘
 ```
 
@@ -34,19 +37,23 @@ Rill is a native macOS launcher — press **⌥Space**, type, hit Enter. It find
 | --- | --- |
 | **Non-activating palette** | A frameless floating `NSPanel` that becomes key without activating the app. No Dock tile, no menu bar, no ⌘Tab entry. |
 | **Instant open** | The panel is built and pre-warmed at launch; showing it costs one `makeKeyAndOrderFront`. Hotkey → first frame in ≤ 80 ms. |
+| **Clipboard history & manager** | Dedicated clipboard overlay (press **⌥V** or click the footer button). Captures plain text, formatted rich text, code snippets, hex colors, URLs, and file paths. Instant search, type filter chips, metadata preview (character count, lines, source app, timestamp), and accessibility direct-pasting. |
 | **Apps, commands and files** | One search field over installed applications, built-in commands, and Spotlight metadata. Results are grouped into fixed sections, never re-sorted across boundaries. |
-| **Suggested apps** | The five apps you used most in the last seven days, surfaced first on an empty field. Usage is recorded from app activations Rill observes itself — no private APIs, no permissions. |
-| **Paged application browser** | All apps are shown five per page with a `‹ 1/N ›` pager. Page Up / Page Down flip pages; arrow keys flip a page when the selection walks off its edge. |
-| **Command chip row** | Built-in commands (`Open Settings`, `Open Home Folder`, `Open Applications`) stay pinned under the list in the root layout — always one click or arrow-press away. |
+| **Suggested apps** | The five apps you used most in the last seven days, surfaced first on an empty field. Pinning an app to favorites automatically backfills from the next eligible app at the bottom to maintain quota. |
+| **Paged application browser** | Applications are cleanly paged with a `‹ 1/N ›` pager. Dedicated Left (`←`) and Right (`→`) arrow navigation switches pages; vertical arrows stay within the current page and stop at boundaries. |
+| **Compact palette footer** | Dual-cluster footer with keyboard action hints (`⏎ Open`, `⌘P Pin`, `⌘⌫ Clear`), pagination indicators, and a one-click clipboard toggle. |
 | **Frecency ranking** | Results blend match quality with usage frequency and recency (`exp(-Δdays/30) · log1p(count)`). Pinned rows win. Stable tie-breaks stop results from jittering between keystrokes. |
-| **Keyboard-first** | `↑` `↓` `Tab` `⇧Tab` `⌃P` `⌃N` to move, `Enter` to run, `⌘1…⌘9` for the first nine rows, `Esc` to clear or dismiss, Page Up/Down for pages. |
+| **Pinned favorites** | `⌘P` (or right-click) pins the selected app, command or file into a Favorites section that survives relaunch. A typed query only shows pins that match it. |
+| **Keyboard-first** | `↑` `↓` `Tab` `⇧Tab` `⌃P` `⌃N` to move, `←` `→` to flip pages, `Enter` to run, `⌘1…⌘9` for the first nine rows, `⌘P` to pin, `⌘⌫` to clear, `Esc` to clear or dismiss. |
 | **Fuzzy matching** | Case- and diacritic-insensitive: exact, prefix, word-boundary, substring, then subsequence with a gap penalty. |
 | **Calculator fallback** | Type `12 * 4`, get `48` and copy it. No extra app, no network. |
 | **Web search fallback** | Anything else offers “Search Google for …” as the last section. |
 | **File search** | `NSMetadataQuery` over your home directory, debounced and cancellable, toggleable in Settings. |
-| **Custom hotkey** | A recorder in Settings rebinds the global hotkey through Carbon `RegisterEventHotKey` — no Accessibility or Input Monitoring prompt. |
+| **Custom hotkeys** | Dedicated recorders in Settings rebind the global palette hotkey (default **⌥Space**) and clipboard hotkey (default **⌥V**) through Carbon `RegisterEventHotKey`. Shortcuts already claimed by other apps are rejected inline. |
+| **Settings window** | Five tabs — General, Search, Clipboard, Data, About — over hotkeys, menu bar icon, launch at login, keyboard hints, file search, suggestion window, page size, clipboard retention & direct paste, usage reset, favorite clearing, and build info. |
+| **First-run welcome** | On first launch, a short window shows the hotkey, warns immediately if another app already owns it, and opens the palette once when dismissed. It never appears again. |
 | **Launch at login** | `SMAppService`-backed toggle in Settings. |
-| **Status bar item** | A menu bar entry as a second way in; the palette itself is still summonable anywhere. |
+| **Status bar item** | A menu bar entry as a second way in, toggleable in Settings; the palette itself is still summonable anywhere. |
 | **Accessibility** | Every row has a label and selection trait, the pager announces “Page X of Y”, focus stays on the search field, and reduced-motion disables the show/hide animation. |
 
 ## Tech stack
@@ -80,10 +87,10 @@ RillUI   ──▶ RillDomain
 
 | Target | Responsibility |
 | --- | --- |
-| `RillDomain` | Entities, ports, use cases, and pure ranking. Foundation only — no AppKit, SwiftUI, SQLite or networking. |
-| `RillData` | Adapters: application catalogue, JSON usage store, Spotlight file search, command registry. |
-| `RillUI` | SwiftUI views and `@Observable` view models. Talks to the domain through use cases only. |
-| `RillPlatform` | AppKit, Carbon and Accessibility: the panel, hotkey, activation policy, app-usage tracker. |
+| `RillDomain` | Entities, ports, use cases (search, clipboard, execution), and pure ranking. Foundation only — no AppKit, SwiftUI, SQLite or networking. |
+| `RillData` | Adapters: application catalogue, JSON usage store, JSON clipboard store, Spotlight file search, command registry. |
+| `RillUI` | SwiftUI views and `@Observable` view models (palette, clipboard, settings, onboarding). Talks to the domain through use cases only. |
+| `RillPlatform` | AppKit, Carbon and Accessibility: the panel, hotkeys, activation policy, pasteboard watcher, direct paster, app-usage tracker. |
 | `Rill` | `main.swift`, `AppDelegate` and the single composition root. No feature logic. |
 
 Every side effect sits behind a protocol in `RillDomain/Ports`; feature code receives ports through `init`, and exactly one place constructs the concrete adapters.
@@ -104,7 +111,7 @@ These are product requirements, not preferences:
 # build
 xcodebuild -scheme Rill -destination 'platform=macOS' build
 
-# unit tests (52 tests, 12 suites)
+# unit tests (68 tests, 14 suites)
 xcodebuild -scheme Rill -destination 'platform=macOS' test
 
 # open in Xcode
@@ -134,4 +141,4 @@ Measured on Apple silicon, app warm, 4 000 apps and commands indexed:
 
 ## Non-goals for v1
 
-Extensions, AI, clipboard history, sync and multi-platform support are explicitly out of scope. Rill does one thing: get you to an app, a file or a command faster than the mouse.
+Extensions, AI, cloud sync, and multi-platform support are explicitly out of scope. Rill does one thing: get you to an app, a file, a clipboard item, or a command faster than the mouse.

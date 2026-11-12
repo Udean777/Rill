@@ -53,6 +53,34 @@ struct PerformanceTests {
         #expect(elapsed < .milliseconds(50))
     }
 
+    @Test func `ranking 4000 unscored candidates stays under budget`() {
+        let clock = ContinuousClock()
+
+        // Real app and command results carry no baseScore, so this exercises
+        // the folding-heavy MatchScore path the previous test skips.
+        let candidates = (0..<4000).map { index in
+            SearchResult(
+                id: .init(source: "application", raw: "app-\(index)"),
+                title: "Application \(index)",
+                icon: .systemSymbol("app"),
+                section: .applications,
+                kind: .application,
+                primaryAction: .openApplication(bundleID: "com.test.app\(index)")
+            )
+        }
+
+        let elapsed = clock.measure {
+            _ = Ranking.rank(
+                candidates,
+                query: SearchQuery(raw: "app"),
+                usage: .empty,
+                now: Date()
+            )
+        }
+
+        #expect(elapsed < .milliseconds(50))
+    }
+
     @Test func `expression evaluation finishes in microseconds`() {
         let clock = ContinuousClock()
         let expression = "((12 * 45) + 340) / 2"

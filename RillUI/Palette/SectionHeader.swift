@@ -9,18 +9,17 @@ struct SectionHeader: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(section.localizedTitle)
-                .font(.system(size: 10, weight: .semibold))
-                .textCase(.uppercase)
-                .tracking(0.6)
+                .font(.system(size: 11.5, weight: .semibold))
+                .tracking(0.65)
                 .foregroundStyle(.secondary)
                 .fixedSize()
 
             Rectangle()
-                .fill(.secondary.opacity(0.15))
+                .fill(.primary.opacity(0.08))
                 .frame(height: 0.5)
         }
         .padding(.horizontal, 14)
-        .padding(.top, 9)
+        .padding(.top, 10)
         .padding(.bottom, 4)
     }
 }

@@ -4,18 +4,29 @@ import AppKit
 /// without activating the app or touching the app menu bar (see design.md §5.3).
 @MainActor
 public final class StatusBarController {
-    private let statusItem: NSStatusItem
+    private var statusItem: NSStatusItem?
     private let onShowPalette: () -> Void
     private let onOpenSettings: () -> Void
 
     public init(onShowPalette: @escaping () -> Void, onOpenSettings: @escaping () -> Void) {
         self.onShowPalette = onShowPalette
         self.onOpenSettings = onOpenSettings
-        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        configure()
     }
 
-    private func configure() {
+    /// Installs or removes the menu bar icon (Preferences → General).
+    public func setEnabled(_ enabled: Bool) {
+        if enabled {
+            guard statusItem == nil else { return }
+            install()
+        } else {
+            guard let statusItem else { return }
+            NSStatusBar.system.removeStatusItem(statusItem)
+            self.statusItem = nil
+        }
+    }
+
+    private func install() {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         guard let button = statusItem.button else { return }
         button.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Rill")
         button.image?.isTemplate = true
@@ -32,6 +43,7 @@ public final class StatusBarController {
         }
 
         statusItem.menu = menu
+        self.statusItem = statusItem
     }
 
     @objc private func showPalette() {

@@ -10,4 +10,16 @@ public protocol UsageStoring: Sendable {
 
     /// Records one execution of `id`.
     func record(_ id: SearchResult.ID, at date: Date) async
+
+    /// Every pinned result, in pin order. Adapters drop files that no longer exist.
+    func pinned() async -> [PinnedResult]
+
+    /// Pins or unpins `result`, storing enough to rebuild it on the next search.
+    func setPinned(_ result: SearchResult, isPinned: Bool, at date: Date) async
+
+    /// Unpins everything, keeping counts and recency for frecency.
+    func clearPins() async
+
+    /// Discards all stored usage.
+    func reset() async
 }

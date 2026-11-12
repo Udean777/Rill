@@ -1,5 +1,6 @@
 import AppKit
 import os
+import RillDomain
 import RillUI
 import SwiftUI
 
@@ -9,8 +10,10 @@ import SwiftUI
 /// `makeKeyAndOrderFront`; the app itself never becomes active.
 public final class PaletteWindowController {
     private static let size = CGSize(width: 680, height: 420)
-    private static let showDuration: TimeInterval = 0.12
+    private static let showDuration: TimeInterval = 0.10
     private static let hideDuration: TimeInterval = 0.08
+
+    public var onOpenSettings: (() -> Void)?
 
     private let panel: PalettePanel
     private let viewModel: PaletteViewModel
@@ -76,6 +79,24 @@ public final class PaletteWindowController {
         }
     }
 
+    public func toggleClipboardHistory() {
+        if isShown && viewModel.mode == .clipboardHistory {
+            hide()
+            viewModel.reset()
+        } else {
+            viewModel.openClipboardHistory()
+            show()
+        }
+    }
+
+    /// Applies preference changes that affect the palette (page size, suggestion
+    /// window) without a relaunch.
+    public func apply(preferences: Preferences) {
+        viewModel.applicationsPageSize = preferences.applicationsPerPage
+        viewModel.showsKeyboardHints = preferences.showKeyboardHints
+        viewModel.refresh()
+    }
+
     public func show() {
         guard let screen = PanelPositioner.screenUnderPointer() else {
             log.error("no screen available for palette")
@@ -113,7 +134,11 @@ public final class PaletteWindowController {
             return true
 
         case 36, 76:  // Return, keypad Enter
-            viewModel.activateSelected()
+            if event.modifierFlags.contains(.option) {
+                viewModel.activateSelectedAlternate()
+            } else {
+                viewModel.activateSelected()
+            }
             return true
 
         case 126:  // Up
@@ -124,14 +149,27 @@ public final class PaletteWindowController {
             viewModel.moveSelection(by: 1)
             return true
 
+        case 123:  // Left arrow
+            if viewModel.hasMultipleApplicationPages && viewModel.query.isEmpty {
+                viewModel.changeApplicationsPage(by: -1)
+                return true
+            }
+
+        case 124:  // Right arrow
+            if viewModel.hasMultipleApplicationPages && viewModel.query.isEmpty {
+                viewModel.changeApplicationsPage(by: 1)
+                return true
+            }
+
         case 48:  // Tab
             viewModel.moveSelection(by: event.modifierFlags.contains(.shift) ? -1 : 1)
             return true
 
         case 35, 45:  // ⌃P / ⌃N
-            guard event.modifierFlags.contains(.control) else { return false }
-            viewModel.moveSelection(by: event.keyCode == 35 ? -1 : 1)
-            return true
+            if event.modifierFlags.contains(.control) {
+                viewModel.moveSelection(by: event.keyCode == 35 ? -1 : 1)
+                return true
+            }
 
         case 116, 121:  // Page Up / Page Down
             viewModel.changeApplicationsPage(by: event.keyCode == 116 ? -1 : 1)
@@ -147,6 +185,44 @@ public final class PaletteWindowController {
            (1...9).contains(number) {
             viewModel.activate(index: number - 1)
             return true
+        }
+
+        if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "," {
+            hide()
+            viewModel.reset()
+            onOpenSettings?()
+            return true
+        }
+
+        if event.modifierFlags.contains(.command),
+           event.charactersIgnoringModifiers?.lowercased() == "p" || event.keyCode == 35 {
+            viewModel.togglePinSelected()
+            return true
+        }
+
+        if event.modifierFlags.contains(.command), event.keyCode == 51 { // ⌘⌫
+            if viewModel.mode == .clipboardHistory {
+                if let cb = viewModel.clipboardViewModel, !cb.query.isEmpty {
+                    cb.updateQuery("")
+                    return true
+                } else {
+                    viewModel.deleteSelected()
+                    return true
+                }
+            } else {
+                if !viewModel.query.isEmpty {
+                    viewModel.updateQuery("")
+                    return true
+                }
+            }
+            return false
+        }
+
+        if event.modifierFlags.contains(.command),
+           event.charactersIgnoringModifiers?.lowercased() == "c" {
+            if viewModel.copySelected() {
+                return true
+            }
         }
 
         return false
