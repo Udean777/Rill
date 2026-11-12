@@ -28,10 +28,19 @@ public struct SearchUseCase: Sendable {
 
     public func callAsFunction(_ query: SearchQuery) async -> [RankedSection] {
         let allCommands = commands.commands
+        let snapshot = await usage.snapshot()
 
         let candidates: [SearchResult]
         if query.mode == .root {
-            candidates = allCommands
+            // Queryless field: suggested apps first, then the rest of the
+            // catalogue, then commands — never an empty palette (design.md §5.2).
+            let allApplications = await applications.applications()
+            let suggestedIDs = suggestedApplicationIDs(usage: snapshot)
+            let suggested = allApplications
+                .filter { suggestedIDs.contains($0.id) }
+                .map { $0.withSection(.suggestions) }
+            let remaining = allApplications.filter { !suggestedIDs.contains($0.id) }
+            candidates = suggested + remaining + allCommands
         } else {
             let filesAllowed: Bool
             if let isFilesEnabled {
@@ -55,9 +64,26 @@ public struct SearchUseCase: Sendable {
             candidates = matchingStatic + fileResults + fallbackResults(for: query)
         }
 
-        let snapshot = await usage.snapshot()
         return Ranking.rank(candidates, query: query, usage: snapshot, now: clock.now)
     }
+
+    /// Applications used inside the suggestion window, most used first, capped.
+    private func suggestedApplicationIDs(usage: UsageSnapshot) -> Set<SearchResult.ID> {
+        let cutoff = clock.now.addingTimeInterval(-Self.suggestionWindow)
+        let recent = usage.entries.filter { id, entry in
+            id.source == "application" && entry.lastUsed >= cutoff
+        }
+        let ranked = recent.sorted { lhs, rhs in
+            if lhs.value.count != rhs.value.count {
+                return lhs.value.count > rhs.value.count
+            }
+            return lhs.value.lastUsed > rhs.value.lastUsed
+        }
+        return Set(ranked.prefix(Self.suggestionLimit).map(\.key))
+    }
+
+    private static let suggestionWindow: TimeInterval = 7 * 24 * 60 * 60
+    private static let suggestionLimit = 5
 
     private func fallbackResults(for query: SearchQuery) -> [SearchResult] {
         var fallbacks: [SearchResult] = []

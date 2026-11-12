@@ -13,10 +13,25 @@ public struct PaletteView: View {
     public var body: some View {
         VStack(spacing: 0) {
             searchField
+            Divider()
             resultList
+            if viewModel.isRootQuery, let commands = viewModel.commandSection {
+                Divider()
+                CommandChipRow(
+                    results: commands.results,
+                    selectedResultID: viewModel.selectedResultID,
+                    action: { viewModel.selectAndActivate($0) }
+                )
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(.white.opacity(0.14), lineWidth: 1)
+        )
         .onAppear { isSearchFocused = viewModel.isVisible }
         .onChange(of: viewModel.isVisible) { _, isVisible in
             isSearchFocused = isVisible
@@ -24,20 +39,20 @@ public struct PaletteView: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 9) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.secondary)
 
             TextField(String(localized: "Search"), text: queryBinding)
                 .textFieldStyle(.plain)
-                .font(.system(size: 20))
+                .font(.system(size: 16))
                 .focused($isSearchFocused)
                 .accessibilityLabel(String(localized: "Search query"))
                 .accessibilityIdentifier("SearchField")
         }
-        .padding(.horizontal, 18)
-        .frame(height: 52)
+        .padding(.horizontal, 14)
+        .frame(height: 40)
     }
 
     private var queryBinding: Binding<String> {
@@ -50,24 +65,30 @@ public struct PaletteView: View {
     private var resultList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 2, pinnedViews: [.sectionHeaders]) {
-                    ForEach(viewModel.sections) { ranked in
-                        Section {
-                            ForEach(ranked.results) { result in
-                                ResultRow(
-                                    result: result,
-                                    shortcutNumber: viewModel.shortcutNumber(for: result.id),
-                                    isSelected: viewModel.selectedResultID == result.id,
-                                    action: { viewModel.selectAndActivate(result) }
-                                )
-                                .id(result.id)
+                LazyVStack(spacing: 1) {
+                    ForEach(visibleSections) { ranked in
+                        VStack(spacing: 1) {
+                            Section {
+                                ForEach(ranked.results) { result in
+                                    ResultRow(
+                                        result: result,
+                                        shortcutNumber: viewModel.shortcutNumber(for: result.id),
+                                        isSelected: viewModel.selectedResultID == result.id,
+                                        action: { viewModel.selectAndActivate(result) }
+                                    )
+                                    .id(result.id)
+                                }
+                            } header: {
+                                SectionHeader(section: ranked.section)
                             }
-                        } header: {
-                            SectionHeader(section: ranked.section)
+
+                            if ranked.section == .applications, viewModel.hasMultipleApplicationPages {
+                                pager
+                            }
                         }
                     }
                 }
-                .padding(.vertical, 6)
+                .padding(.vertical, 4)
             }
             .onChange(of: viewModel.selectedResultID) { _, selectedResultID in
                 guard let selectedResultID else { return }
@@ -78,6 +99,55 @@ public struct PaletteView: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel(String(localized: "Search Results"))
         }
+    }
+
+    /// Root layout keeps commands in the chip row, not in the scrolling list.
+    private var visibleSections: [RankedSection] {
+        viewModel.isRootQuery
+            ? viewModel.displaySections.filter { $0.section != .commands }
+            : viewModel.displaySections
+    }
+
+    private var pager: some View {
+        HStack(spacing: 10) {
+            Spacer()
+
+            Button {
+                viewModel.changeApplicationsPage(by: -1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.applicationsPage == 0)
+            .accessibilityLabel(String(localized: "Previous page"))
+
+            Text("\(viewModel.applicationsPage + 1) / \(viewModel.applicationPageCount)")
+                .font(.system(size: 10, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+
+            Button {
+                viewModel.changeApplicationsPage(by: 1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.applicationsPage >= viewModel.applicationPageCount - 1)
+            .accessibilityLabel(String(localized: "Next page"))
+
+            Spacer()
+        }
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(.secondary)
+        .padding(.vertical, 3)
+        .accessibilityElement(children: .contain)
+        .accessibilityValue(
+            String(
+                localized: "Page \(viewModel.applicationsPage + 1) of \(viewModel.applicationPageCount)"
+            )
+        )
     }
 }
 

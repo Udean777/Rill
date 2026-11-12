@@ -403,7 +403,7 @@ sequenceDiagram
     UC->>RK: rank(candidates, query, usage, now)
     RK-->>UC: [RankedSection]
     UC-->>VM: [RankedSection]
-    VM->>VM: clamp selection, publish
+    VM->>VM: slice applications to one page, clamp selection, publish
     VM-->>U: rows render
 
     U->>VM: Enter
@@ -468,6 +468,9 @@ Forced by Accessibility + filesystem-wide metadata search. Accepted cost: no Mac
 **ADR-007 — `LSUIElement` + `.nonactivatingPanel` + a refcounted policy override, instead of "activate and hide the dock icon".**
 A launcher that activates changes the menu bar, the Dock highlight, and ⌘Tab order — three visible side effects for one keystroke. Keeping the app permanently accessory and never activating means the palette can be summoned hundreds of times a day without the window server ever noticing. The cost is that any real window (Settings) must explicitly borrow `.regular` activation, hence the refcount. Details: `design.md` §5.3 and §5.4 in this document.
 
+**ADR-008 — Suggested apps come from activations Rill tracks itself, not from system recents.**
+`LSSharedFileList`'s recent-applications list is deprecated since 10.11 and limited by the Dock's own list; `knowledge-c.db` is private and undocumented, so reading it would be fragile and a notarization risk. `AppUsageTracker` (RillPlatform) observes `NSWorkspace.didActivateApplicationNotification` and records the activation through `UsageStoring`, the same port executions already use. Cost: suggestions are empty on a fresh install until apps are used while Rill runs; the palette still shows applications and commands, so it is never empty. Revisit if users ask for instant suggestions on day one.
+
 ## 11. Known shortcuts
 
 Each is a deliberate deferral with an upgrade path, and each appears as a `shortcut:` comment at the code site.
@@ -476,7 +479,7 @@ Each is a deliberate deferral with an upgrade path, and each appears as a `short
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `NSMetadataQuery` for files (no content index)            | Search quality complaints, or > 150 ms file latency                                               |
 | JSON usage snapshot                                       | > ~50k rows, or clipboard history added                                                           |
-| Write-through usage writes (no batching)                  | Executions become automated or batched                                                            |
+| Write-through usage writes (no batching)                  | Executions or app activations become automated or batched                                          |
 | Application scan one level per root                       | Missing apps reported inside bundle-style subdirectories                                          |
 | No extension/plugin seam beyond `ActionDescriptor.custom` | When a second-party command source is needed                                                      |
 | Single home-directory scope for file search               | When custom folder scopes are requested by users                                                  |

@@ -75,7 +75,7 @@ struct RankingTests {
             now: now
         )
 
-        #expect(ranked.map(\.section) == [.commands, .applications])
+        #expect(ranked.map(\.section) == [.applications, .commands])
     }
 
     @Test func `favorites pin above higher-scoring results`() {

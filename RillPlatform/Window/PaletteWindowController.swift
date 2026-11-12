@@ -64,6 +64,8 @@ public final class PaletteWindowController {
         guard let screen = PanelPositioner.screenUnderPointer() else { return }
         panel.setFrame(PanelPositioner.frame(for: Self.size, on: screen), display: false)
         panel.contentView?.layoutSubtreeIfNeeded()
+        // Populate root suggestions now so the very first show is never empty.
+        viewModel.updateQuery("")
     }
 
     public func toggle() {
@@ -80,7 +82,7 @@ public final class PaletteWindowController {
             return
         }
         panel.setFrame(PanelPositioner.frame(for: Self.size, on: screen), display: true)
-        viewModel.isVisible = true
+        viewModel.show()
 
         guard !isShown else {
             panel.makeKeyAndOrderFront(nil)
@@ -129,6 +131,10 @@ public final class PaletteWindowController {
         case 35, 45:  // ⌃P / ⌃N
             guard event.modifierFlags.contains(.control) else { return false }
             viewModel.moveSelection(by: event.keyCode == 35 ? -1 : 1)
+            return true
+
+        case 116, 121:  // Page Up / Page Down
+            viewModel.changeApplicationsPage(by: event.keyCode == 116 ? -1 : 1)
             return true
 
         default:

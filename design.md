@@ -96,7 +96,7 @@ struct SearchResult: Identifiable, Sendable, Hashable {
     let title: String
     let subtitle: String?
     let icon: IconRef            // .systemSymbol / .bundle(id) / .fileURL(URL) — lazy, never decoded eagerly
-    let section: Section         // .favorites, .suggestions, .commands, .applications, .files
+    let section: Section         // .favorites, .suggestions, .applications, .commands, .files
     let kind: Kind               // .command / .application / .file / .calculation / .web
     let primaryAction: ActionDescriptor
     let secondaryActions: [ActionDescriptor]
@@ -111,11 +111,13 @@ struct SearchResult: Identifiable, Sendable, Hashable {
 Fixed order, always rendered in this order even when empty (empty sections are dropped, order is not re-sorted):
 
 1. `favorites` — user-pinned results.
-2. `suggestions` — queryless defaults on an empty field (recent, most-used, a few system actions).
-3. `commands` — built-in and app commands matching the query.
-4. `applications` — installed apps.
+2. `suggestions` — apps used within the last 7 days, most used first, capped at 5 (see §5.2).
+3. `applications` — installed apps, shown 5 per page in the palette.
+4. `commands` — built-in and app commands matching the query; a fixed chip row in the root layout.
 5. `files` — Spotlight metadata matches.
 6. `fallback` — "Search the web for …", "Open …", "Calculate …".
+
+Suggested apps are excluded from `applications` so a row never appears twice.
 
 Ranking never crosses section boundaries. Users learn where things live; a file never jumps above an app command because of a fuzzy-score quirk.
 
@@ -170,21 +172,26 @@ These are release-build gates, checked in `PerformanceTests` and by hand with In
 
 ```
 ┌──────────────────────────────────────────────┐
-│  ⌕  query text                        [12]   │  search field, 28 pt
+│  ⌕  query text                               │  search field, 40 pt
 ├──────────────────────────────────────────────┤
-│  FAVORITES                                   │  section header, 11 pt, secondary
-│  ▸ Safari                            ⌘1     │  selected row: accent fill
-│  COMMANDS                                    │
-│    Open Settings                     ⌘2     │
-│    Sleep                             ⌘3     │
-│  FILES                                       │
-│    design.md /Users/…/projects      ⌘4     │
+│  SUGGESTED ──────────────────────────────    │  ≤ 5 apps used in the last 7 days
+│  ▸ Safari                            ⌘1     │  selected: tint + accent border
+│  ALL APPS ───────────────────────────────    │  catalogue, 5 per page
+│    Notes                              ⌘2     │
+│    …                                         │
+│                         ‹  1/10  ›           │  pager, only when > 1 page
+├──────────────────────────────────────────────┤
+│  [⚙ Open Settings] [⌂ Home] [▦ Applications] │  command chip row, fixed
 └──────────────────────────────────────────────┘
 ```
 
-- Row height 44 pt, icon 20×20, title `.body`, subtitle `.caption` secondary, right-side shortcut hint.
+- Row height 34 pt, icon 16×16, title 13.5 pt medium, subtitle 11 pt secondary, right-side ⌘N hint.
+- Root layout: `suggestions` rows, then `applications` paged five at a time, then a fixed chip row of commands below the scrolling list.
+- Pager: `‹ 1/N ›`, clickable; Page Up/Page Down also change the page. Walking the selection off an applications page edge flips the page.
+- Suggestions come from app activations Rill records itself (`NSWorkspace.didActivateApplicationNotification`, see `architecture.md` ADR-008), window 7 days, most used first, capped at 5.
+- Typed query: suggestions disappear; applications stay paged at 5; commands render as ordinary rows in the list.
 - Keyboard selection is the only selection. Hover moves selection only if the pointer actually moves (avoids the list jumping under a resting cursor).
-- Empty query → `suggestions`; never an empty palette.
+- Empty query → suggestions + applications + commands; never an empty palette.
 - No results → a `fallback` section, never an empty state string.
 - Result count is virtualised (`LazyVStack` + scroll position reset to top on query change).
 

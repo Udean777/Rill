@@ -12,6 +12,8 @@ final class AppEnvironment {
     let settingsWindowController: SettingsWindowController
     let hotkeyManager: CarbonHotkeyManager
     let preferencesStore: PreferencesStoring
+    // Retained for its lifetime — deallocation stops recording usage.
+    private let usageTracker: AppUsageTracker
     // Retained for its lifetime — deallocation removes the status item from the bar.
     private let statusBarController: StatusBarController
 
@@ -22,12 +24,14 @@ final class AppEnvironment {
         settingsWindowController: SettingsWindowController,
         hotkeyManager: CarbonHotkeyManager,
         preferencesStore: PreferencesStoring,
+        usageTracker: AppUsageTracker,
         statusBarController: StatusBarController
     ) {
         self.paletteWindowController = paletteWindowController
         self.settingsWindowController = settingsWindowController
         self.hotkeyManager = hotkeyManager
         self.preferencesStore = preferencesStore
+        self.usageTracker = usageTracker
         self.statusBarController = statusBarController
     }
 
@@ -109,6 +113,7 @@ final class AppEnvironment {
             settingsWindowController: settingsWindowController,
             hotkeyManager: hotkeyManager,
             preferencesStore: preferencesStore,
+            usageTracker: AppUsageTracker(usage: usageStore, clock: clock),
             statusBarController: StatusBarController(
                 onShowPalette: { windowController.show() },
                 onOpenSettings: { settingsWindowController.show() }
@@ -119,6 +124,7 @@ final class AppEnvironment {
     }
 
     func start() {
+        usageTracker.start()
         paletteWindowController.prewarm()
 
         Task {

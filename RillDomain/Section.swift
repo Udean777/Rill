@@ -3,8 +3,8 @@
 public enum Section: String, Sendable, CaseIterable {
     case favorites
     case suggestions
-    case commands
     case applications
+    case commands
     case files
     case fallback
 }

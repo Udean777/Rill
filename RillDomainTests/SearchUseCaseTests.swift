@@ -5,35 +5,104 @@ import Testing
 
 @Suite("SearchUseCase")
 struct SearchUseCaseTests {
-    @Test func `empty query returns the command catalogue`() async {
+    @Test func `empty query shows applications and commands`() async {
         let useCase = makeUseCase(
             commands: [.fixture(title: "Open Settings")],
-            applications: [.fixture(title: "Safari", section: .applications)]
+            applications: [.fixture(title: "Safari", section: .applications, kind: .application, source: "application")]
         )
 
         let sections = await useCase(SearchQuery(raw: ""))
 
-        #expect(sections.map(\.section) == [.commands])
-        #expect(sections.first?.results.map(\.title) == ["Open Settings"])
+        #expect(sections.map(\.section) == [.applications, .commands])
+        #expect(sections[0].results.map(\.title) == ["Safari"])
+        #expect(sections[1].results.map(\.title) == ["Open Settings"])
+    }
+
+    @Test func `apps used in the last seven days are suggested`() async {
+        let safari = SearchResult.fixture(
+            title: "Safari", section: .applications, kind: .application, source: "application"
+        )
+        let notes = SearchResult.fixture(
+            title: "Notes", section: .applications, kind: .application, source: "application"
+        )
+        let mail = SearchResult.fixture(
+            title: "Mail", section: .applications, kind: .application, source: "application"
+        )
+        let now = Date(timeIntervalSince1970: 0)
+        let usage = UsageSnapshot(
+            entries: [
+                safari.id: .init(count: 3, lastUsed: now.addingTimeInterval(-86_400)),
+                notes.id: .init(count: 1, lastUsed: now.addingTimeInterval(-2 * 86_400)),
+            ]
+        )
+        let useCase = makeUseCase(
+            commands: [],
+            applications: [safari, notes, mail],
+            usage: usage
+        )
+
+        let sections = await useCase(SearchQuery(raw: ""))
+
+        #expect(sections.map(\.section) == [.suggestions, .applications])
+        #expect(sections[0].results.map(\.title) == ["Safari", "Notes"])
+        #expect(sections[1].results.map(\.title) == ["Mail"])
+    }
+
+    @Test func `apps unused for over a week stay in applications`() async {
+        let old = SearchResult.fixture(
+            title: "Old", section: .applications, kind: .application, source: "application"
+        )
+        let now = Date(timeIntervalSince1970: 0)
+        let usage = UsageSnapshot(
+            entries: [old.id: .init(count: 9, lastUsed: now.addingTimeInterval(-10 * 86_400))]
+        )
+        let useCase = makeUseCase(commands: [], applications: [old], usage: usage)
+
+        let sections = await useCase(SearchQuery(raw: ""))
+
+        #expect(sections.map(\.section) == [.applications])
+    }
+
+    @Test func `suggestions are capped at five`() async {
+        let now = Date(timeIntervalSince1970: 0)
+        let apps = (0..<7).map { index in
+            SearchResult.fixture(
+                title: "App \(index)", section: .applications, kind: .application, source: "application"
+            )
+        }
+        let usage = UsageSnapshot(
+            entries: Dictionary(
+                uniqueKeysWithValues: apps.map { app in
+                    (app.id, UsageSnapshot.Entry(count: 1, lastUsed: now.addingTimeInterval(-86_400)))
+                }
+            )
+        )
+        let useCase = makeUseCase(commands: [], applications: apps, usage: usage)
+
+        let sections = await useCase(SearchQuery(raw: ""))
+
+        #expect(sections[0].section == .suggestions)
+        #expect(sections[0].results.count == 5)
+        #expect(sections[1].results.count == 2)
     }
 
     @Test func `matches commands and applications in section order`() async {
         let useCase = makeUseCase(
             commands: [.fixture(title: "Open Safari Tab")],
-            applications: [.fixture(title: "Safari", section: .applications)]
+            applications: [.fixture(title: "Safari", section: .applications, kind: .application, source: "application")]
         )
 
         let sections = await useCase(SearchQuery(raw: "saf"))
 
-        #expect(sections.map(\.section) == [.commands, .applications, .fallback])
-        #expect(sections[0].results.map(\.title) == ["Open Safari Tab"])
-        #expect(sections[1].results.map(\.title) == ["Safari"])
+        #expect(sections.map(\.section) == [.applications, .commands, .fallback])
+        #expect(sections[0].results.map(\.title) == ["Safari"])
+        #expect(sections[1].results.map(\.title) == ["Open Safari Tab"])
     }
 
     @Test func `empty sections are dropped`() async {
         let useCase = makeUseCase(
             commands: [.fixture(title: "Open Settings")],
-            applications: [.fixture(title: "Safari", section: .applications)]
+            applications: []
         )
 
         let sections = await useCase(SearchQuery(raw: ""))
@@ -71,7 +140,7 @@ struct SearchUseCaseTests {
 
         let sections = await useCase(SearchQuery(raw: "saf"))
 
-        #expect(sections.map(\.section) == [.commands, .applications, .files, .fallback])
+        #expect(sections.map(\.section) == [.applications, .commands, .files, .fallback])
         #expect(sections[2].results.map(\.title) == ["Safety.pdf"])
     }
 

@@ -9,20 +9,22 @@ struct ResultRow: View {
     let isSelected: Bool
     let action: () -> Void
 
+    @State private var isHovered = false
+
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 9) {
             icon
-                .frame(width: 20, height: 20)
+                .frame(width: 16, height: 16)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(result.title)
-                    .font(.body)
+                    .font(.system(size: 13.5, weight: .medium))
                     .lineLimit(1)
 
                 if let subtitle = result.subtitle {
                     Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
@@ -31,20 +33,31 @@ struct ResultRow: View {
 
             if let shortcutNumber {
                 Text("⌘\(shortcutNumber)")
-                    .font(.caption)
-                    .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 10)
-        .frame(height: 44)
-        .foregroundStyle(isSelected ? .white : .primary)
-        .background(
-            isSelected ? Color.accentColor : .clear,
-            in: RoundedRectangle(cornerRadius: 6)
-        )
-        .padding(.horizontal, 8)
+        .frame(height: 34)
+        .foregroundStyle(.primary)
+        // Tint + accent border instead of a solid fill: keeps title contrast
+        // above 4.5:1 while the 1 pt accent border carries the selection state.
+        .background {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    isSelected
+                        ? Color.accentColor.opacity(0.16)
+                        : (isHovered ? Color.primary.opacity(0.06) : Color.clear)
+                )
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(isSelected ? Color.accentColor.opacity(0.85) : .clear, lineWidth: 1)
+        }
+        .padding(.horizontal, 6)
         .contentShape(Rectangle())
         .onTapGesture(perform: action)
+        .onHover { isHovered = $0 }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -57,7 +70,7 @@ struct ResultRow: View {
             Image(systemName: name)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 18, height: 18)
+                .frame(width: 16, height: 16)
         case .fileURL(let url):
             Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
                 .resizable()

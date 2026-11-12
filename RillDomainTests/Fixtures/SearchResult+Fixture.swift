@@ -7,10 +7,11 @@ extension SearchResult {
         title: String,
         section: Section = .commands,
         kind: Kind = .command,
+        source: String = "fixture",
         action: ActionDescriptor = .openFile(URL(fileURLWithPath: "/"))
     ) -> SearchResult {
         SearchResult(
-            id: .init(source: "fixture", raw: title),
+            id: .init(source: source, raw: title),
             title: title,
             icon: .systemSymbol("circle"),
             section: section,

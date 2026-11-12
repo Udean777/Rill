@@ -42,4 +42,19 @@ public struct SearchResult: Identifiable, Sendable, Hashable {
         self.secondaryActions = secondaryActions
         self.baseScore = baseScore
     }
+
+    /// The same result, regrouped into another section.
+    public func withSection(_ section: Section) -> SearchResult {
+        SearchResult(
+            id: id,
+            title: title,
+            subtitle: subtitle,
+            icon: icon,
+            section: section,
+            kind: kind,
+            primaryAction: primaryAction,
+            secondaryActions: secondaryActions,
+            baseScore: baseScore
+        )
+    }
 }

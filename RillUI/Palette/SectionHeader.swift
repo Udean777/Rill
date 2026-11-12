@@ -1,20 +1,27 @@
 import RillDomain
 import SwiftUI
 
-/// Sticky section title above a group of rows.
+/// Compact section label with a trailing hairline rule. No filled container,
+/// so the label can never read as a rounded chip.
 struct SectionHeader: View {
     let section: RillDomain.Section
 
     var body: some View {
-        Text(section.localizedTitle)
-            .font(.caption2.weight(.semibold))
-            .textCase(.uppercase)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 18)
-            .padding(.top, 10)
-            .padding(.bottom, 4)
-            .background(.regularMaterial)
+        HStack(spacing: 8) {
+            Text(section.localizedTitle)
+                .font(.system(size: 10, weight: .semibold))
+                .textCase(.uppercase)
+                .tracking(0.6)
+                .foregroundStyle(.secondary)
+                .fixedSize()
+
+            Rectangle()
+                .fill(.secondary.opacity(0.15))
+                .frame(height: 0.5)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 9)
+        .padding(.bottom, 4)
     }
 }
 
