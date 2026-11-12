@@ -31,17 +31,19 @@ public enum Ranking {
 
             let scored = sectionResults
                 .map { result in
-                    Scored(
+                    let entry = usage.entry(for: result.id)
+                    return Scored(
                         result: result,
+                        titleCount: result.title.count,
                         score: blendedScore(
                             result,
                             query: query,
-                            usage: usage,
+                            entry: entry,
                             now: now,
                             tuning: tuning
                         ),
-                        isFavorite: usage.entry(for: result.id)?.isFavorite ?? false,
-                        pinOrder: usage.entry(for: result.id)?.pinOrder
+                        isFavorite: entry?.isFavorite ?? false,
+                        pinOrder: entry?.pinOrder
                     )
                 }
                 .sorted(by: precedes)
@@ -52,6 +54,7 @@ public enum Ranking {
 
     private struct Scored {
         let result: SearchResult
+        let titleCount: Int
         let score: Double
         let isFavorite: Bool
         let pinOrder: Int?
@@ -60,7 +63,7 @@ public enum Ranking {
     private static func blendedScore(
         _ result: SearchResult,
         query: SearchQuery,
-        usage: UsageSnapshot,
+        entry: UsageSnapshot.Entry?,
         now: Date,
         tuning: RankingTuning
     ) -> Double {
@@ -70,7 +73,7 @@ public enum Ranking {
         } else {
             match = MatchScore.score(title: result.title, query: query, tuning: tuning)
         }
-        let frecency = Frecency.score(usage.entry(for: result.id), now: now, tuning: tuning)
+        let frecency = Frecency.score(entry, now: now, tuning: tuning)
         return tuning.matchWeight * match + tuning.frecencyWeight * frecency
     }
 
@@ -93,12 +96,14 @@ public enum Ranking {
         if lhs.score != rhs.score { return lhs.score > rhs.score }
 
         // Stable tie-breaks: shorter title, then alphabetically, then identity.
-        if lhs.result.title.count != rhs.result.title.count {
-            return lhs.result.title.count < rhs.result.title.count
+        if lhs.titleCount != rhs.titleCount {
+            return lhs.titleCount < rhs.titleCount
         }
 
-        let titleOrder = lhs.result.title.localizedCaseInsensitiveCompare(rhs.result.title)
-        if titleOrder != .orderedSame { return titleOrder == .orderedAscending }
+        if lhs.result.title != rhs.result.title {
+            let titleOrder = lhs.result.title.localizedCaseInsensitiveCompare(rhs.result.title)
+            if titleOrder != .orderedSame { return titleOrder == .orderedAscending }
+        }
 
         if lhs.result.id.source != rhs.result.id.source {
             return lhs.result.id.source < rhs.result.id.source

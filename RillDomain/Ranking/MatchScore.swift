@@ -14,8 +14,10 @@ public enum MatchScore {
         let foldedTitle = fold(title)
         if foldedTitle == foldedQuery { return 1 }
         if foldedTitle.hasPrefix(foldedQuery) { return 0.9 }
-        if hasWordBoundaryPrefix(foldedTitle, foldedQuery) { return 0.8 }
-        if foldedTitle.contains(foldedQuery) { return 0.6 }
+        if foldedTitle.contains(foldedQuery) {
+            if hasWordBoundaryPrefix(foldedTitle, foldedQuery) { return 0.8 }
+            return 0.6
+        }
 
         guard let gap = subsequenceGap(foldedTitle, foldedQuery) else { return 0 }
         return max(tuning.fuzzyFloor, tuning.fuzzyCeiling - tuning.gapPenalty * Double(gap))
@@ -27,9 +29,22 @@ public enum MatchScore {
 
     /// `true` when any word in `title` starts with `query`.
     private static func hasWordBoundaryPrefix(_ title: String, _ query: String) -> Bool {
-        title
-            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-            .contains { $0.hasPrefix(query) }
+        var atWordStart = true
+        var index = title.startIndex
+        while index < title.endIndex {
+            let character = title[index]
+            let isWordCharacter = character.isLetter || character.isNumber
+            if isWordCharacter {
+                if atWordStart && title[index...].hasPrefix(query) {
+                    return true
+                }
+                atWordStart = false
+            } else {
+                atWordStart = true
+            }
+            index = title.index(after: index)
+        }
+        return false
     }
 
     /// Characters skipped between the first and last subsequence match, or

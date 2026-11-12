@@ -33,12 +33,15 @@ jobs:
           sed -i '' 's/"DEVELOPMENT_TEAM": "[^"]*"/"DEVELOPMENT_TEAM": ""/g' Rill.xcodeproj/project.xcproj || true
 
       - name: Run Tests
+        env:
+          TEST_RUNNER_CI: "true"
         run: |
           set -o pipefail
           xcodebuild clean test \
             -project Rill.xcodeproj \
             -scheme Rill \
             -destination 'platform=macOS' \
+            TEST_RUNNER_CI=true \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild-test.log || {

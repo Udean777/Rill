@@ -8,11 +8,20 @@ struct PerformanceTests {
     /// CI runners execute in virtualized environments with shared CPU scheduling,
     /// so we allow headroom for VM jitter.
     private var latencyBudget: Duration {
-        ProcessInfo.processInfo.environment["CI"] != nil ? .seconds(2) : .milliseconds(50)
+        isCI ? .seconds(2) : .milliseconds(50)
     }
 
     private var microsecondBudget: Duration {
-        ProcessInfo.processInfo.environment["CI"] != nil ? .milliseconds(50) : .milliseconds(10)
+        isCI ? .milliseconds(50) : .milliseconds(10)
+    }
+
+    private var isCI: Bool {
+        let env = ProcessInfo.processInfo.environment
+        return env["CI"] != nil
+            || env["GITHUB_ACTIONS"] != nil
+            || env["USER"] == "runner"
+            || env["HOME"]?.contains("/runner") == true
+            || env["XCTestConfigurationFilePath"]?.contains("/runner/") == true
     }
 
     @Test func `ranking 4000 items completes well under 50ms budget`() {
