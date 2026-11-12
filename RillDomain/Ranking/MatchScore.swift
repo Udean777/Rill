@@ -8,14 +8,16 @@ public enum MatchScore {
         query: SearchQuery,
         tuning: RankingTuning = .standard
     ) -> Double {
-        let foldedTitle = fold(title)
-        let foldedQuery = fold(query.trimmed)
-
+        let foldedQuery = query.folded
         guard !foldedQuery.isEmpty else { return 1 }
+
+        let foldedTitle = fold(title)
         if foldedTitle == foldedQuery { return 1 }
         if foldedTitle.hasPrefix(foldedQuery) { return 0.9 }
-        if hasWordBoundaryPrefix(foldedTitle, foldedQuery) { return 0.8 }
-        if foldedTitle.contains(foldedQuery) { return 0.6 }
+        if foldedTitle.contains(foldedQuery) {
+            if hasWordBoundaryPrefix(foldedTitle, foldedQuery) { return 0.8 }
+            return 0.6
+        }
 
         guard let gap = subsequenceGap(foldedTitle, foldedQuery) else { return 0 }
         return max(tuning.fuzzyFloor, tuning.fuzzyCeiling - tuning.gapPenalty * Double(gap))
@@ -27,27 +29,41 @@ public enum MatchScore {
 
     /// `true` when any word in `title` starts with `query`.
     private static func hasWordBoundaryPrefix(_ title: String, _ query: String) -> Bool {
-        title
-            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-            .contains { $0.hasPrefix(query) }
+        var atWordStart = true
+        var index = title.startIndex
+        while index < title.endIndex {
+            let character = title[index]
+            let isWordCharacter = character.isLetter || character.isNumber
+            if isWordCharacter {
+                if atWordStart && title[index...].hasPrefix(query) {
+                    return true
+                }
+                atWordStart = false
+            } else {
+                atWordStart = true
+            }
+            index = title.index(after: index)
+        }
+        return false
     }
 
     /// Characters skipped between the first and last subsequence match, or
     /// `nil` when `query` is not a subsequence of `title`.
     private static func subsequenceGap(_ title: String, _ query: String) -> Int? {
+        guard !query.isEmpty else { return 0 }
         var firstMatch: Int?
         var lastMatch = 0
-        var matched = 0
+        var queryIndex = query.startIndex
 
-        for (index, character) in title.enumerated() where matched < query.count {
-            let expected = query[query.index(query.startIndex, offsetBy: matched)]
-            guard character == expected else { continue }
+        for (index, character) in title.enumerated() {
+            guard character == query[queryIndex] else { continue }
             firstMatch = firstMatch ?? index
             lastMatch = index
-            matched += 1
+            queryIndex = query.index(after: queryIndex)
+            if queryIndex == query.endIndex { break }
         }
 
-        guard matched == query.count, let firstMatch else { return nil }
+        guard queryIndex == query.endIndex, let firstMatch else { return nil }
         return (lastMatch - firstMatch + 1) - query.count
     }
 }

@@ -1,13 +1,18 @@
 <div align="center">
 
-# Rill
+  <img src="assets/logo-squircle.png" width="128" height="128" alt="Rill Logo" style="border-radius: 28px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);">
 
-**A Spotlight-style launcher for macOS that never steals focus.**
+  # Rill
 
-![Swift 6](https://img.shields.io/badge/Swift-6.0-F05138?logo=swift&logoColor=white)
-![macOS 26+](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white)
-![Xcode 27](https://img.shields.io/badge/Xcode-27-147EFB?logo=xcode&logoColor=white)
-![No dependencies](https://img.shields.io/badge/third--party%20dependencies-none-2ea44f)
+  **A fast, native macOS launcher in the style of Spotlight and Raycast that never steals focus.**
+
+  <p>
+    <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-6.0-F05138?logo=swift&logoColor=white&style=flat-square" alt="Swift 6"></a>
+    <a href="https://apple.com/macos"><img src="https://img.shields.io/badge/macOS-14%2B-black?logo=apple&logoColor=white&style=flat-square" alt="macOS"></a>
+    <img src="https://img.shields.io/badge/Xcode-27-147EFB?logo=xcode&logoColor=white&style=flat-square" alt="Xcode 27">
+    <img src="https://img.shields.io/badge/dependencies-none-2ea44f?style=flat-square" alt="Zero Dependencies">
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="MIT License">
+  </p>
 
 </div>
 

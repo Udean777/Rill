@@ -11,13 +11,14 @@ public struct SearchQuery: Sendable, Hashable {
     }
 
     public let raw: String
+    public let trimmed: String
+    public let folded: String
 
     public init(raw: String) {
         self.raw = raw
-    }
-
-    public var trimmed: String {
-        raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.trimmed = trimmed
+        self.folded = Self.fold(trimmed)
     }
 
     public var mode: Mode {
@@ -30,12 +31,11 @@ public struct SearchQuery: Sendable, Hashable {
 
     /// `true` when `title` contains the query, ignoring case and diacritics.
     public func matches(title: String) -> Bool {
-        let foldedQuery = Self.fold(trimmed)
-        guard !foldedQuery.isEmpty else { return true }
-        return Self.fold(title).contains(foldedQuery)
+        guard !folded.isEmpty else { return true }
+        return Self.fold(title).contains(folded)
     }
 
-    private static func fold(_ value: String) -> String {
+    public static func fold(_ value: String) -> String {
         value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 }

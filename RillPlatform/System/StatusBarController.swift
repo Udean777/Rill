@@ -28,8 +28,11 @@ public final class StatusBarController {
     private func install() {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         guard let button = statusItem.button else { return }
-        button.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Rill")
-        button.image?.isTemplate = true
+
+        let icon = NSImage(named: "StatusBarIcon")
+            ?? NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Rill")
+        icon?.isTemplate = true
+        button.image = icon
 
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Show Rill", action: #selector(showPalette), keyEquivalent: ""))

@@ -35,13 +35,34 @@ public struct OnboardingView: View {
     // MARK: - Sections
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Welcome to Rill")
-                .font(.system(size: 22, weight: .semibold))
+        HStack(spacing: 16) {
+            Group {
+                if let nsImage = NSImage(named: "AppLogo") ?? NSImage(named: NSImage.applicationIconName)
+                    ?? NSApplication.shared.applicationIconImage {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                } else {
+                    Image(systemName: "sparkles")
+                        .resizable()
+                }
+            }
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 48, height: 48)
+            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.25), radius: 4, x: 0, y: 2)
 
-            Text("Fast, keyboard-driven launcher for applications, files, and commands.")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Welcome to Rill")
+                    .font(.system(size: 22, weight: .semibold))
+
+                Text("Fast, keyboard-driven launcher for applications, files, and commands.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

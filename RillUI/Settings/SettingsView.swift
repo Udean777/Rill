@@ -495,6 +495,35 @@ public struct SettingsView: View {
 
     private var aboutSection: some View {
         VStack(spacing: 16) {
+            VStack(spacing: 10) {
+                Group {
+                    if let nsImage = NSImage(named: "AppLogo") ?? NSImage(named: NSImage.applicationIconName)
+                        ?? NSApplication.shared.applicationIconImage {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                    } else {
+                        Image(systemName: "sparkles")
+                            .resizable()
+                    }
+                }
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 64, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.35), radius: 6, x: 0, y: 2)
+
+                Text("Rill")
+                    .font(.system(size: 18, weight: .bold))
+
+                Text("Fast, native macOS launcher")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 6)
+
             settingsCard(title: "Rill") {
                 HStack {
                     Text("Version")
