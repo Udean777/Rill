@@ -32,8 +32,17 @@ struct PreferencesTests {
         #expect(prefs.hasCompletedOnboarding == false)
     }
 
-    @Test func `sanitizing replaces out-of-range choices with defaults`() {
-        let prefs = Preferences(suggestionWindowDays: 90, applicationsPerPage: 10)
+    @Test func `every section is visible by default`() {
+        #expect(Preferences.default.hiddenSections.isEmpty)
+    }
+
+    @Test func `sanitizing keeps the hidden sections`() {
+        let prefs = Preferences(hiddenSections: [.files, .systemSettings])
+
+        #expect(prefs.sanitized().hiddenSections == [.files, .systemSettings])
+    }
+
+    @Test func `sanitizing replaces out-of-range choices with defaults`() {        let prefs = Preferences(suggestionWindowDays: 90, applicationsPerPage: 10)
         let sanitized = prefs.sanitized()
 
         #expect(sanitized.suggestionWindowDays == 7)

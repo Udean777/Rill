@@ -11,6 +11,7 @@ public struct SearchUseCase: Sendable {
     private let preferences: (@Sendable () async -> Preferences)?
     private let currencyRates: CurrencyRateFetching?
     private let locale: LocaleProviding?
+    private let systemSettings: SystemSettingsProviding?
 
     public init(
         commands: CommandProviding,
@@ -20,7 +21,8 @@ public struct SearchUseCase: Sendable {
         clock: Clock,
         preferences: (@Sendable () async -> Preferences)? = nil,
         currencyRates: CurrencyRateFetching? = nil,
-        locale: LocaleProviding? = nil
+        locale: LocaleProviding? = nil,
+        systemSettings: SystemSettingsProviding? = nil
     ) {
         self.commands = commands
         self.applications = applications
@@ -30,6 +32,7 @@ public struct SearchUseCase: Sendable {
         self.preferences = preferences
         self.currencyRates = currencyRates
         self.locale = locale
+        self.systemSettings = systemSettings
     }
 
     public func callAsFunction(_ query: SearchQuery) async -> [RankedSection] {
@@ -69,12 +72,15 @@ public struct SearchUseCase: Sendable {
                 favorites + suggested + remaining
                 + allCommands.filter { !favoriteIDs.contains($0.id) }
         } else {
-            let filesAllowed = currentPreferences.fileSearchEnabled && files != nil
+            let filesAllowed = currentPreferences.fileSearchEnabled
+                && (currentPreferences.fileSearchIncludeFiles || currentPreferences.fileSearchIncludeFolders)
+                && files != nil
+            let fileOptions = FileSearchOptions(preferences: currentPreferences)
 
             async let fetchedApps = applications.applications()
             async let fetchedFiles: [SearchResult] = {
                 guard filesAllowed, let files else { return [] }
-                return await files.search(query: query)
+                return await files.search(query: query, options: fileOptions)
             }()
             async let conversion = currencyFallback(
                 for: query,
@@ -98,18 +104,31 @@ public struct SearchUseCase: Sendable {
                     && MatchScore.score(title: result.title, query: query) > 0
             }
 
-            var fallbacks = fallbackResults(for: query)
+            // System Settings panes join a typed query only; the root layout
+            // stays uncluttered (design.md §4.4).
+            let matchingSystemSettings = (systemSettings?.settings ?? []).filter { result in
+                MatchScore.score(title: result.title, query: query) > 0
+            }
+
+            var fallbacks = fallbackResults(
+                for: query,
+                calculatorEnabled: currentPreferences.calculatorEnabled,
+                webSearchEnabled: currentPreferences.webSearchEnabled
+            )
             if let currencyResult {
                 fallbacks.append(currencyResult)
             }
 
             candidates =
-                favorites + matchingStatic
+                favorites + matchingStatic + matchingSystemSettings
                 + fileResults.filter { !favoriteIDs.contains($0.id) }
                 + fallbacks
         }
 
-        return Ranking.rank(candidates, query: query, usage: snapshot, now: clock.now)
+        // Sections the user switched off never reach the layout, for a typed
+        // query and for the root one alike.
+        let visible = candidates.filter { !currentPreferences.hiddenSections.contains($0.section) }
+        return Ranking.rank(visible, query: query, usage: snapshot, now: clock.now)
     }
 
     /// Rebuilds pinned rows: live catalogue data for apps and commands, the
@@ -223,13 +242,17 @@ public struct SearchUseCase: Sendable {
         )
     }
 
-    private func fallbackResults(for query: SearchQuery) -> [SearchResult] {
+    private func fallbackResults(
+        for query: SearchQuery,
+        calculatorEnabled: Bool,
+        webSearchEnabled: Bool
+    ) -> [SearchResult] {
         var fallbacks: [SearchResult] = []
         let raw = query.raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !raw.isEmpty else { return [] }
 
         // Calculator fallback
-        if let value = ExpressionEvaluator.evaluate(raw) {
+        if calculatorEnabled, let value = ExpressionEvaluator.evaluate(raw) {
             let formatted = ExpressionEvaluator.formatResult(value)
             fallbacks.append(
                 SearchResult(
@@ -246,7 +269,8 @@ public struct SearchUseCase: Sendable {
         }
 
         // Web search fallback
-        if let encoded = raw.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+        if webSearchEnabled,
+           let encoded = raw.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
            let url = URL(string: "https://www.google.com/search?q=\(encoded)") {
             fallbacks.append(
                 SearchResult(

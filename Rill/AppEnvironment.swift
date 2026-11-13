@@ -66,7 +66,8 @@ final class AppEnvironment {
                 await preferencesStore.load()
             },
             currencyRates: currencyRateFetcher,
-            locale: localeProvider
+            locale: localeProvider,
+            systemSettings: SystemSettingsCatalog()
         )
         let executeUseCase = ExecuteResultUseCase(
             performer: SystemActionPerformer(),
@@ -256,9 +257,9 @@ final class AppEnvironment {
                 return
             }
 
-            // Hide first, then act (design.md §4.6): the palette must not wait.
-            windowController?.hide()
-            viewModel?.reset()
+            // Hide instantly, launch immediately, and defer query reset so
+            // SwiftUI re-rendering does not compete with app activation.
+            windowController?.hide(animated: false)
             Task {
                 do {
                     try await executeUseCase(result)
@@ -266,6 +267,9 @@ final class AppEnvironment {
                     log.error("action failed: \(String(describing: error), privacy: .public)")
                     NSSound.beep()
                 }
+            }
+            Task { @MainActor in
+                viewModel?.reset()
             }
         }
 

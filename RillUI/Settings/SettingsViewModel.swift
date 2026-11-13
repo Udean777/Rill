@@ -94,8 +94,75 @@ public final class SettingsViewModel {
     }
 
     public func updateFileSearchEnabled(_ enabled: Bool) {
+        guard preferences.fileSearchEnabled != enabled else { return }
         preferences.fileSearchEnabled = enabled
         save()
+    }
+
+    public func updateFileSearchIncludeFiles(_ include: Bool) {
+        guard preferences.fileSearchIncludeFiles != include else { return }
+        preferences.fileSearchIncludeFiles = include
+        save()
+    }
+
+    public func updateFileSearchIncludeFolders(_ include: Bool) {
+        guard preferences.fileSearchIncludeFolders != include else { return }
+        preferences.fileSearchIncludeFolders = include
+        save()
+    }
+
+    public func updateFileSearchIncludeHidden(_ include: Bool) {
+        guard preferences.fileSearchIncludeHidden != include else { return }
+        preferences.fileSearchIncludeHidden = include
+        save()
+    }
+
+    public func updateFileSearchScope(_ scope: FileSearchScope) {
+        guard preferences.fileSearchScope != scope else { return }
+        preferences.fileSearchScope = scope
+        save()
+    }
+
+    public func addFileSearchCustomPath(_ path: String) {
+        let normalized = Self.normalizePath(path)
+        guard !normalized.isEmpty, !preferences.fileSearchCustomPaths.contains(normalized) else { return }
+        preferences.fileSearchCustomPaths.append(normalized)
+        save()
+    }
+
+    public func removeFileSearchCustomPath(_ path: String) {
+        preferences.fileSearchCustomPaths.removeAll { $0 == path }
+        save()
+    }
+
+    public func addFileSearchExcludedPath(_ path: String) {
+        let normalized = Self.normalizePath(path)
+        guard !normalized.isEmpty, !preferences.fileSearchExcludedPaths.contains(normalized) else { return }
+        preferences.fileSearchExcludedPaths.append(normalized)
+        save()
+    }
+
+    public func removeFileSearchExcludedPath(_ path: String) {
+        preferences.fileSearchExcludedPaths.removeAll { $0 == path }
+        save()
+    }
+
+    public func updateCalculatorEnabled(_ enabled: Bool) {
+        guard preferences.calculatorEnabled != enabled else { return }
+        preferences.calculatorEnabled = enabled
+        save()
+    }
+
+    public func updateWebSearchEnabled(_ enabled: Bool) {
+        guard preferences.webSearchEnabled != enabled else { return }
+        preferences.webSearchEnabled = enabled
+        save()
+    }
+
+    private static func normalizePath(_ path: String) -> String {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > 1, trimmed.hasSuffix("/") else { return trimmed }
+        return String(trimmed.dropLast())
     }
 
     public func updateSuggestionWindowDays(_ days: Int) {
@@ -149,6 +216,15 @@ public final class SettingsViewModel {
     public func updateCurrencyConversionEnabled(_ enabled: Bool) {
         guard preferences.currencyConversionEnabled != enabled else { return }
         preferences.currencyConversionEnabled = enabled
+        save()
+    }
+
+    public func updateSectionVisibility(_ section: Section, isVisible: Bool) {
+        if isVisible {
+            preferences.hiddenSections.remove(section)
+        } else {
+            preferences.hiddenSections.insert(section)
+        }
         save()
     }
 

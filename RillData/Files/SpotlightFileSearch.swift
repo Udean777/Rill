@@ -14,13 +14,14 @@ public final class SpotlightFileSearch: FileSearching {
     private let log = Logger(subsystem: "com.ssajudn.Rill", category: "files")
     private var currentQuery: NSMetadataQuery?
     private var activeContinuation: CheckedContinuation<[SearchResult], Never>?
+    private var activeOptions: FileSearchOptions = .default
     private var notificationObservers: [Any] = []
 
     public init() {}
 
-    public nonisolated func search(query: SearchQuery) async -> [SearchResult] {
+    public nonisolated func search(query: SearchQuery, options: FileSearchOptions) async -> [SearchResult] {
         await withTaskCancellationHandler {
-            await self.performSearch(query: query)
+            await self.performSearch(query: query, options: options)
         } onCancel: {
             Task { @MainActor in
                 self.cancelCurrentQuery()
@@ -28,28 +29,26 @@ public final class SpotlightFileSearch: FileSearching {
         }
     }
 
-    private func performSearch(query: SearchQuery) async -> [SearchResult] {
+    private func performSearch(query: SearchQuery, options: FileSearchOptions) async -> [SearchResult] {
         cancelCurrentQuery()
+
+        guard options.includeFiles || options.includeFolders else {
+            return []
+        }
 
         guard case let .text(text) = query.mode, text.count >= Self.minimumQueryLength else {
             return []
         }
 
+        activeOptions = options
+
         return await withCheckedContinuation { continuation in
             activeContinuation = continuation
 
             let metadataQuery = NSMetadataQuery()
-            metadataQuery.searchScopes = [NSMetadataQueryUserHomeScope]
+            metadataQuery.searchScopes = Self.searchScopes(for: options)
 
-            let escaped = text.replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "\"", with: "\\\"")
-                .replacingOccurrences(of: "*", with: "\\*")
-                .replacingOccurrences(of: "?", with: "\\?")
-
-            let predicateString = """
-            (kMDItemDisplayName == "*\(escaped)*"cd || kMDItemFSName == "*\(escaped)*"cd) && \
-            kMDItemContentType != "com.apple.application-bundle"
-            """
+            let predicateString = Self.predicateString(for: text, options: options)
             metadataQuery.predicate = NSPredicate(fromMetadataQueryString: predicateString)
 
             metadataQuery.sortDescriptors = [
@@ -76,7 +75,10 @@ public final class SpotlightFileSearch: FileSearching {
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in
                     guard let self, let query = self.currentQuery else { return }
-                    if query.resultCount >= Self.maxResults {
+                    let threshold = self.activeOptions.excludedPaths.isEmpty && self.activeOptions.includeHidden
+                        ? Self.maxResults
+                        : Self.maxResults * 3
+                    if query.resultCount >= threshold {
                         self.handleQueryGathered()
                     }
                 }
@@ -100,11 +102,14 @@ public final class SpotlightFileSearch: FileSearching {
         metadataQuery.disableUpdates()
 
         var results: [SearchResult] = []
-        let count = min(metadataQuery.resultCount, Self.maxResults)
+        let total = metadataQuery.resultCount
+        let options = activeOptions
 
-        for index in 0..<count {
+        for index in 0..<total {
+            guard results.count < Self.maxResults else { break }
             guard let item = metadataQuery.result(at: index) as? NSMetadataItem,
-                  let path = item.value(forAttribute: NSMetadataItemPathKey) as? String
+                  let path = item.value(forAttribute: NSMetadataItemPathKey) as? String,
+                  !Self.shouldExclude(path: path, options: options)
             else { continue }
 
             let url = URL(fileURLWithPath: path)
@@ -152,5 +157,67 @@ public final class SpotlightFileSearch: FileSearching {
             NotificationCenter.default.removeObserver(observer)
         }
         notificationObservers.removeAll()
+    }
+
+    /// Builds the Spotlight `NSMetadataQuery` predicate string for `text` and `options`.
+    public nonisolated static func predicateString(for text: String, options: FileSearchOptions) -> String {
+        let escaped = text.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "*", with: "\\*")
+            .replacingOccurrences(of: "?", with: "\\?")
+
+        var clauses = [
+            "(kMDItemDisplayName == \"*\(escaped)*\"cd || kMDItemFSName == \"*\(escaped)*\"cd)",
+            "kMDItemContentType != \"com.apple.application-bundle\"",
+        ]
+
+        if options.includeFiles && !options.includeFolders {
+            clauses.append("kMDItemContentType != \"public.folder\"")
+        } else if !options.includeFiles && options.includeFolders {
+            clauses.append("kMDItemContentType == \"public.folder\"")
+        }
+
+        if !options.includeHidden {
+            clauses.append("kMDItemFSInvisible != 1")
+        }
+
+        return clauses.joined(separator: " && ")
+    }
+
+    /// Resolves `NSMetadataQuery.searchScopes` from `options`.
+    public nonisolated static func searchScopes(for options: FileSearchOptions) -> [Any] {
+        switch options.scope {
+        case .homeDirectory:
+            [NSMetadataQueryUserHomeScope]
+        case .computer:
+            [NSMetadataQueryLocalComputerScope]
+        case .custom:
+            options.customPaths.isEmpty
+                ? [NSMetadataQueryUserHomeScope]
+                : options.customPaths.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath, isDirectory: true) }
+        }
+    }
+
+    /// Returns `true` when `path` should be hidden due to dot-segments or excluded directories.
+    public nonisolated static func shouldExclude(path: String, options: FileSearchOptions) -> Bool {
+        if !options.includeHidden {
+            let components = URL(fileURLWithPath: path).pathComponents
+            if components.contains(where: { $0.hasPrefix(".") && $0 != "." && $0 != ".." }) {
+                return true
+            }
+        }
+
+        for rawExcluded in options.excludedPaths {
+            let expanded = (rawExcluded as NSString).expandingTildeInPath
+            let normalized = expanded.hasSuffix("/") && expanded.count > 1
+                ? String(expanded.dropLast())
+                : expanded
+            guard !normalized.isEmpty else { continue }
+            if path == normalized || path.hasPrefix(normalized + "/") {
+                return true
+            }
+        }
+
+        return false
     }
 }

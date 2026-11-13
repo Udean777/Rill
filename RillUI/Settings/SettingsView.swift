@@ -1,5 +1,6 @@
 import RillDomain
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Settings configuration view (see design.md §5.5).
 /// Styled after Raycast preferences and macOS System Settings inset grouped cards.
@@ -8,6 +9,8 @@ public struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
     @State private var isConfirmingReset = false
     @State private var isConfirmingPinsClear = false
+    @State private var isPickingCustomFolder = false
+    @State private var isPickingExcludedFolder = false
 
     private enum SettingsTab: String, CaseIterable, Identifiable {
         case general = "General"
@@ -72,6 +75,28 @@ public struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Every favorite is unpinned. Usage history stays.")
+        }
+        .fileImporter(
+            isPresented: $isPickingCustomFolder,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: true
+        ) { result in
+            if case .success(let urls) = result {
+                for url in urls {
+                    viewModel.addFileSearchCustomPath(url.path)
+                }
+            }
+        }
+        .fileImporter(
+            isPresented: $isPickingExcludedFolder,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: true
+        ) { result in
+            if case .success(let urls) = result {
+                for url in urls {
+                    viewModel.addFileSearchExcludedPath(url.path)
+                }
+            }
         }
     }
 
@@ -261,15 +286,95 @@ public struct SettingsView: View {
                     .toggleStyle(.switch)
                 }
 
-                cardDivider
+                if viewModel.preferences.fileSearchEnabled {
+                    cardDivider
 
-                HStack {
-                    Text("Search scope")
-                        .font(.system(size: 13))
-                    Spacer()
-                    Text("Home folder")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text("Show files")
+                            .font(.system(size: 13))
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { viewModel.preferences.fileSearchIncludeFiles },
+                            set: { viewModel.updateFileSearchIncludeFiles($0) }
+                        ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                    }
+
+                    cardDivider
+
+                    HStack {
+                        Text("Show folders")
+                            .font(.system(size: 13))
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { viewModel.preferences.fileSearchIncludeFolders },
+                            set: { viewModel.updateFileSearchIncludeFolders($0) }
+                        ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                    }
+
+                    cardDivider
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Show hidden files")
+                                .font(.system(size: 13))
+                            Spacer()
+                            Toggle("", isOn: Binding(
+                                get: { viewModel.preferences.fileSearchIncludeHidden },
+                                set: { viewModel.updateFileSearchIncludeHidden($0) }
+                            ))
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                        }
+                        Text("Include dot-files and invisible system items.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    cardDivider
+
+                    HStack {
+                        Text("Search scope")
+                            .font(.system(size: 13))
+                        Spacer()
+                        Picker("", selection: Binding(
+                            get: { viewModel.preferences.fileSearchScope },
+                            set: { viewModel.updateFileSearchScope($0) }
+                        )) {
+                            Text("Home folder").tag(FileSearchScope.homeDirectory)
+                            Text("Entire Mac").tag(FileSearchScope.computer)
+                            Text("Custom folders").tag(FileSearchScope.custom)
+                        }
+                        .labelsHidden()
+                        .frame(width: 150)
+                    }
+
+                    if viewModel.preferences.fileSearchScope == .custom {
+                        folderPathList(
+                            paths: viewModel.preferences.fileSearchCustomPaths,
+                            emptyLabel: String(localized: "No custom folders selected (defaults to Home folder)."),
+                            addLabel: String(localized: "Add Folder…"),
+                            onAdd: { isPickingCustomFolder = true },
+                            onRemove: { viewModel.removeFileSearchCustomPath($0) }
+                        )
+                    }
+
+                    cardDivider
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Excluded folders")
+                            .font(.system(size: 13))
+                        folderPathList(
+                            paths: viewModel.preferences.fileSearchExcludedPaths,
+                            emptyLabel: String(localized: "No excluded folders."),
+                            addLabel: String(localized: "Exclude Folder…"),
+                            onAdd: { isPickingExcludedFolder = true },
+                            onRemove: { viewModel.removeFileSearchExcludedPath($0) }
+                        )
+                    }
                 }
             }
 
@@ -290,6 +395,47 @@ public struct SettingsView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            settingsCard(title: "Results") {
+                ForEach(Array(Self.configurableSections.enumerated()), id: \.element) { index, section in
+                    if index > 0 {
+                        cardDivider
+                    }
+                    sectionToggle(section)
+                }
+
+                cardDivider
+
+                HStack {
+                    Text("Calculator")
+                        .font(.system(size: 13))
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { viewModel.preferences.calculatorEnabled },
+                        set: { viewModel.updateCalculatorEnabled($0) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                }
+
+                cardDivider
+
+                HStack {
+                    Text("Web Search")
+                        .font(.system(size: 13))
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { viewModel.preferences.webSearchEnabled },
+                        set: { viewModel.updateWebSearchEnabled($0) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                }
+
+                Text("Sections you switch off never appear in the palette, even on an empty search field.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
 
             settingsCard(title: "Palette") {
@@ -334,8 +480,63 @@ public struct SettingsView: View {
         }
     }
 
-    // MARK: - Clipboard Tab
+    /// Sections the Results card can switch off. Files, Currency, Calculator,
+    /// and Web Search already have their own toggles.
+    private static let configurableSections: [RillDomain.Section] = [
+        .favorites, .suggestions, .applications, .commands, .systemSettings,
+    ]
 
+    private func folderPathList(
+        paths: [String],
+        emptyLabel: String,
+        addLabel: String,
+        onAdd: @escaping () -> Void,
+        onRemove: @escaping (String) -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if paths.isEmpty {
+                Text(emptyLabel)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(paths, id: \.self) { path in
+                    HStack(spacing: 6) {
+                        Text(path)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Button {
+                            onRemove(path)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            Button(addLabel, action: onAdd)
+                .controlSize(.small)
+        }
+    }
+
+    private func sectionToggle(_ section: RillDomain.Section) -> some View {
+        HStack {
+            Text(section.localizedTitle)
+                .font(.system(size: 13))
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { !viewModel.preferences.hiddenSections.contains(section) },
+                set: { viewModel.updateSectionVisibility(section, isVisible: $0) }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+        }
+    }
+
+    // MARK: - Clipboard Tab
     private var clipboardSection: some View {
         VStack(spacing: 16) {
             settingsCard(title: "Recording") {

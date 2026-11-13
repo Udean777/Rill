@@ -17,7 +17,7 @@ struct ResultRow: View {
         HStack(spacing: 10) {
             icon
                 .frame(width: 18, height: 18)
-                .foregroundStyle(isConversion ? Color.accentColor : Color.primary)
+                .foregroundStyle(usesAccentIcon ? Color.accentColor : Color.primary)
 
             HStack(spacing: 8) {
                 Text(result.title)
@@ -85,6 +85,12 @@ struct ResultRow: View {
     /// is not lost among file results.
     private var isConversion: Bool {
         result.kind == .currency
+    }
+
+    /// System Settings rows are actions on the system, not documents. An accent
+    /// icon marks them without competing with the currency headline.
+    private var usesAccentIcon: Bool {
+        isConversion || result.kind == .systemSettings
     }
 
     @ViewBuilder

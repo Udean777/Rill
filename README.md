@@ -54,8 +54,10 @@ Rill is a native macOS launcher — press **⌥Space**, type, hit Enter. It find
 | **Calculator fallback** | Type `12 * 4`, get `48` and copy it. No extra app, no network. |
 | **Web search fallback** | Anything else offers “Search Google for …” as the last section. |
 | **File search** | `NSMetadataQuery` over your home directory, debounced and cancellable, toggleable in Settings. |
+| **Choose what shows up** | Switch result sections off in Settings — favorites, suggestions, applications, commands, System Settings, or the web/calculator fallback — and the palette stops rendering them on every query. |
+| **System Settings** | Type a pane name — `wallpaper`, `accessibility`, `privacy`, `wifi` — to open that pane directly. Panes only join a typed query, so the empty-field layout stays clean. |
 | **Custom hotkeys** | Dedicated recorders in Settings rebind the global palette hotkey (default **⌥Space**) and clipboard hotkey (default **⌥V**) through Carbon `RegisterEventHotKey`. Shortcuts already claimed by other apps are rejected inline. |
-| **Settings window** | Five tabs — General, Search, Clipboard, Data, About — over hotkeys, menu bar icon, launch at login, keyboard hints, file search, suggestion window, page size, clipboard retention & direct paste, usage reset, favorite clearing, and build info. |
+| **Settings window** | Five tabs — General, Search, Clipboard, Data, About — over hotkeys, menu bar icon, launch at login, keyboard hints, file search, result section visibility, suggestion window, page size, clipboard retention & direct paste, usage reset, favorite clearing, and build info. |
 | **First-run welcome** | On first launch, a short window shows the hotkey, warns immediately if another app already owns it, and opens the palette once when dismissed. It never appears again. |
 | **Launch at login** | `SMAppService`-backed toggle in Settings. |
 | **Status bar item** | A menu bar entry as a second way in, toggleable in Settings; the palette itself is still summonable anywhere. |
@@ -93,7 +95,7 @@ RillUI   ──▶ RillDomain
 | Target | Responsibility |
 | --- | --- |
 | `RillDomain` | Entities, ports, use cases (search, clipboard, execution), and pure ranking. Foundation only — no AppKit, SwiftUI, SQLite or networking. |
-| `RillData` | Adapters: application catalogue, JSON usage store, JSON clipboard store, Spotlight file search, command registry. |
+| `RillData` | Adapters: application catalogue, JSON usage store, JSON clipboard store, Spotlight file search, command registry, System Settings catalogue. |
 | `RillUI` | SwiftUI views and `@Observable` view models (palette, clipboard, settings, onboarding). Talks to the domain through use cases only. |
 | `RillPlatform` | AppKit, Carbon and Accessibility: the panel, hotkeys, activation policy, pasteboard watcher, direct paster, app-usage tracker. |
 | `Rill` | `main.swift`, `AppDelegate` and the single composition root. No feature logic. |

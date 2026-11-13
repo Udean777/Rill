@@ -29,6 +29,7 @@ extension RillDomain.Section {
     var localizedTitle: String {
         switch self {
         case .currency: String(localized: "Currency")
+        case .systemSettings: String(localized: "System Settings")
         case .favorites: String(localized: "Favorites")
         case .suggestions: String(localized: "Suggestions")
         case .commands: String(localized: "Commands")

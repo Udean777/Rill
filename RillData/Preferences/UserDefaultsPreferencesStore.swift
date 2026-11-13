@@ -10,6 +10,11 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
         static let hotkeyModifiers = "preferences.hotkey.modifiers"
         static let fileSearchEnabled = "preferences.fileSearch.enabled"
         static let fileSearchScope = "preferences.fileSearch.scope"
+        static let fileSearchIncludeFiles = "preferences.fileSearch.includeFiles"
+        static let fileSearchIncludeFolders = "preferences.fileSearch.includeFolders"
+        static let fileSearchIncludeHidden = "preferences.fileSearch.includeHidden"
+        static let fileSearchCustomPaths = "preferences.fileSearch.customPaths"
+        static let fileSearchExcludedPaths = "preferences.fileSearch.excludedPaths"
         static let suggestionWindowDays = "preferences.suggestions.windowDays"
         static let applicationsPerPage = "preferences.applications.perPage"
         static let statusBarEnabled = "preferences.statusBar.enabled"
@@ -22,6 +27,9 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
         static let clipboardDirectPaste = "preferences.clipboard.directPaste"
         static let clipboardSaveImages = "preferences.clipboard.saveImages"
         static let currencyConversionEnabled = "preferences.currency.enabled"
+        static let calculatorEnabled = "preferences.calculator.enabled"
+        static let webSearchEnabled = "preferences.webSearch.enabled"
+        static let hiddenSections = "preferences.sections.hidden"
     }
 
     public init(userDefaults: UserDefaults = .standard) {
@@ -54,6 +62,16 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
             hotkey: hotkey,
             fileSearchEnabled: fileSearchEnabled,
             fileSearchScope: scope,
+            fileSearchIncludeFiles: userDefaults.object(forKey: Key.fileSearchIncludeFiles) as? Bool
+                ?? Preferences.default.fileSearchIncludeFiles,
+            fileSearchIncludeFolders: userDefaults.object(forKey: Key.fileSearchIncludeFolders) as? Bool
+                ?? Preferences.default.fileSearchIncludeFolders,
+            fileSearchIncludeHidden: userDefaults.object(forKey: Key.fileSearchIncludeHidden) as? Bool
+                ?? Preferences.default.fileSearchIncludeHidden,
+            fileSearchCustomPaths: userDefaults.stringArray(forKey: Key.fileSearchCustomPaths)
+                ?? Preferences.default.fileSearchCustomPaths,
+            fileSearchExcludedPaths: userDefaults.stringArray(forKey: Key.fileSearchExcludedPaths)
+                ?? Preferences.default.fileSearchExcludedPaths,
             suggestionWindowDays: userDefaults.object(forKey: Key.suggestionWindowDays) as? Int
                 ?? Preferences.default.suggestionWindowDays,
             applicationsPerPage: userDefaults.object(forKey: Key.applicationsPerPage) as? Int
@@ -74,7 +92,15 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
             clipboardSaveImages: userDefaults.object(forKey: Key.clipboardSaveImages) as? Bool
                 ?? Preferences.default.clipboardSaveImages,
             currencyConversionEnabled: userDefaults.object(forKey: Key.currencyConversionEnabled) as? Bool
-                ?? Preferences.default.currencyConversionEnabled
+                ?? Preferences.default.currencyConversionEnabled,
+            calculatorEnabled: userDefaults.object(forKey: Key.calculatorEnabled) as? Bool
+                ?? Preferences.default.calculatorEnabled,
+            webSearchEnabled: userDefaults.object(forKey: Key.webSearchEnabled) as? Bool
+                ?? Preferences.default.webSearchEnabled,
+            hiddenSections: Set(
+                (userDefaults.stringArray(forKey: Key.hiddenSections) ?? [])
+                    .compactMap(Section.init(rawValue:))
+            )
         ).sanitized()
     }
 
@@ -83,6 +109,11 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
         userDefaults.set(preferences.hotkey.modifiers.rawValue, forKey: Key.hotkeyModifiers)
         userDefaults.set(preferences.fileSearchEnabled, forKey: Key.fileSearchEnabled)
         userDefaults.set(preferences.fileSearchScope.rawValue, forKey: Key.fileSearchScope)
+        userDefaults.set(preferences.fileSearchIncludeFiles, forKey: Key.fileSearchIncludeFiles)
+        userDefaults.set(preferences.fileSearchIncludeFolders, forKey: Key.fileSearchIncludeFolders)
+        userDefaults.set(preferences.fileSearchIncludeHidden, forKey: Key.fileSearchIncludeHidden)
+        userDefaults.set(preferences.fileSearchCustomPaths, forKey: Key.fileSearchCustomPaths)
+        userDefaults.set(preferences.fileSearchExcludedPaths, forKey: Key.fileSearchExcludedPaths)
         userDefaults.set(preferences.suggestionWindowDays, forKey: Key.suggestionWindowDays)
         userDefaults.set(preferences.applicationsPerPage, forKey: Key.applicationsPerPage)
         userDefaults.set(preferences.statusBarEnabled, forKey: Key.statusBarEnabled)
@@ -94,6 +125,12 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
         userDefaults.set(preferences.clipboardDirectPaste, forKey: Key.clipboardDirectPaste)
         userDefaults.set(preferences.clipboardSaveImages, forKey: Key.clipboardSaveImages)
         userDefaults.set(preferences.currencyConversionEnabled, forKey: Key.currencyConversionEnabled)
+        userDefaults.set(preferences.calculatorEnabled, forKey: Key.calculatorEnabled)
+        userDefaults.set(preferences.webSearchEnabled, forKey: Key.webSearchEnabled)
+        userDefaults.set(
+            preferences.hiddenSections.map(\.rawValue).sorted(),
+            forKey: Key.hiddenSections
+        )
         // Monotonic: a stale settings snapshot must never resurrect the welcome
         // window after onboarding has been completed.
         let completed =

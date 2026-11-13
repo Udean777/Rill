@@ -103,7 +103,7 @@ public struct RankedSection: Identifiable, Sendable {
 }
 
 public enum Section: String, Sendable, CaseIterable {
-    case currency, favorites, suggestions, commands, applications, files, fallback
+    case currency, systemSettings, favorites, suggestions, commands, applications, files, fallback
 }
 ```
 
@@ -120,6 +120,10 @@ public protocol ApplicationCataloguing: Sendable {
 
 public protocol CommandProviding: Sendable {
     var commands: [SearchResult] { get }                 // synchronous, in-memory, Sendable
+}
+
+public protocol SystemSettingsProviding: Sendable {
+    var settings: [SearchResult] { get }                 // built-in System Settings panes
 }
 
 public protocol UsageStoring: Sendable {
@@ -449,7 +453,7 @@ sequenceDiagram
 
 | Data                                                | Store                                                                                                    | Location                                        |
 | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Preferences (hotkey, file search, palette layout)   | `UserDefaults`, behind `PreferencesStoring` port                                                         | standard defaults domain                        |
+| Preferences (hotkey, file search, palette layout, hidden result sections) | `UserDefaults`, behind `PreferencesStoring` port                                | standard defaults domain                        |
 | Frecency (id → count, lastUsed, favorite, pinOrder) | Single JSON snapshot, atomic write-through on every record (`write(to:options:.atomic)`) | `~/Library/Application Support/Rill/usage.json` |
 | Application catalogue                               | Derived, rebuilt at launch + FSEvents                                                                    | in memory only                                  |
 

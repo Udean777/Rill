@@ -7,31 +7,19 @@ public final class SystemActionPerformer: ActionPerforming {
     public init() {}
 
     public nonisolated func perform(_ action: ActionDescriptor) async throws {
-        try await MainActor.run {
-            try Self.performOnMain(action)
-        }
-    }
-
-    @MainActor
-    private static func performOnMain(_ action: ActionDescriptor) throws {
         switch action {
         case .openApplication(let bundleID):
-            guard
-                let url = NSWorkspace.shared.urlForApplication(
-                    withBundleIdentifier: bundleID
-                )
-            else {
-                throw SystemActionError.applicationNotFound
-            }
-            try open(url)
+            try await Self.openApplication(bundleID: bundleID)
 
         case .openURL(let url), .openFile(let url):
-            try open(url)
+            try await Self.open(url)
 
         case .copyToPasteboard(let text):
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(text, forType: .string)
+            await MainActor.run {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(text, forType: .string)
+            }
 
         case .openSettings, .openClipboardHistory:
             // The app layer intercepts this before dispatch; reaching the
@@ -40,11 +28,48 @@ public final class SystemActionPerformer: ActionPerforming {
         }
     }
 
-    @MainActor
-    private static func open(_ url: URL) throws {
-        guard NSWorkspace.shared.open(url) else {
-            throw SystemActionError.openFailed
+    private static func openApplication(bundleID: String) async throws {
+        // Fast path: already-running apps activate directly via WindowServer,
+        // avoiding LaunchServices URL resolution and open IPC.
+        let activated = await MainActor.run {
+            activateRunningApplication(bundleID: bundleID)
         }
+        if activated {
+            return
+        }
+
+        guard
+            let url = NSWorkspace.shared.urlForApplication(
+                withBundleIdentifier: bundleID
+            )
+        else {
+            throw SystemActionError.applicationNotFound
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        _ = try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+    }
+
+    @MainActor
+    private static func activateRunningApplication(bundleID: String) -> Bool {
+        guard
+            let running = NSRunningApplication
+                .runningApplications(withBundleIdentifier: bundleID)
+                .first(where: { !$0.isTerminated })
+        else {
+            return false
+        }
+        if running.isHidden {
+            running.unhide()
+        }
+        return running.activate()
+    }
+
+    private static func open(_ url: URL) async throws {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        _ = try await NSWorkspace.shared.open(url, configuration: configuration)
     }
 }
 

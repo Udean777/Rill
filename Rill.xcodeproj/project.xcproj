@@ -43,6 +43,7 @@
           "target-membership": [
             "Rill/frameworks",
             { "build-phase": "Rill/copy/Embed Frameworks", "code-sign-on-copy": true, "header-preservation": "remove-on-copy" },
+            "RillDomainTests/frameworks",
           ],
         }, {
           "path": "<PRODUCTS>/RillUI.framework",
@@ -320,6 +321,7 @@
       "product-type": "bundle.unit-test",
       "dependencies": [
         "RillDomain",
+        "RillData",
       ],
       "build-phases": [
         "compile-sources",
