@@ -208,8 +208,8 @@ public final class PaletteWindowController {
 
         if event.modifierFlags.contains(.command), event.keyCode == 51 { // ⌘⌫
             if viewModel.mode == .clipboardHistory {
-                if let cb = viewModel.clipboardViewModel, !cb.query.isEmpty {
-                    cb.updateQuery("")
+                if let clipboard = viewModel.clipboardViewModel, !clipboard.query.isEmpty {
+                    clipboard.updateQuery("")
                     return true
                 } else {
                     viewModel.deleteSelected()

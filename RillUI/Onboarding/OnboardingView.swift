@@ -14,19 +14,32 @@ public struct OnboardingView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 20) {
             headerSection
 
-            hotkeyHeroCard
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    hotkeyHeroCard
 
-            hintsSection
+                    permissionsCard
 
-            Spacer(minLength: 0)
+                    hintsSection
+                }
+                .padding(.vertical, 2)
+            }
 
             footerSection
         }
-        .padding(32)
-        .frame(width: 520, height: 340, alignment: .topLeading)
+        .padding(28)
+        .frame(
+            minWidth: 540,
+            idealWidth: 580,
+            maxWidth: .infinity,
+            minHeight: 520,
+            idealHeight: 600,
+            maxHeight: .infinity,
+            alignment: .topLeading
+        )
         .task {
             await viewModel.load()
         }
@@ -36,23 +49,7 @@ public struct OnboardingView: View {
 
     private var headerSection: some View {
         HStack(spacing: 16) {
-            Group {
-                if let nsImage = NSImage(named: "AppLogo") ?? NSImage(named: NSImage.applicationIconName)
-                    ?? NSApplication.shared.applicationIconImage {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                } else {
-                    Image(systemName: "sparkles")
-                        .resizable()
-                }
-            }
-            .aspectRatio(contentMode: .fit)
-            .frame(width: 48, height: 48)
-            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
-            )
+            AppLogoView(size: 48, cornerRadius: 11)
             .shadow(color: Color.black.opacity(0.25), radius: 4, x: 0, y: 2)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -108,6 +105,12 @@ public struct OnboardingView: View {
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
         )
+    }
+
+    private var permissionsCard: some View {
+        SettingsCard(title: "Permissions") {
+            PermissionsCardContent(viewModel: viewModel)
+        }
     }
 
     private var hintsSection: some View {

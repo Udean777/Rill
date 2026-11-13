@@ -78,22 +78,6 @@ public final class PaletteViewModel {
         SearchQuery(raw: query).mode == .root
     }
 
-    /// The commands section, rendered as a fixed chip row in the root layout.
-    public var commandSection: RankedSection? {
-        sections.first { $0.section == .commands }
-    }
-
-    public var applicationPageCount: Int {
-        SectionPager.pageCount(
-            itemCount: applicationResults.count,
-            pageSize: applicationsPageSize
-        )
-    }
-
-    public var hasMultipleApplicationPages: Bool {
-        applicationPageCount > 1
-    }
-
     /// Show the palette. The first frame is never empty: when there is no
     /// content yet, the empty query loads suggestions instantly instead of
     /// waiting for the first keystroke. An already-populated palette keeps
@@ -130,39 +114,27 @@ public final class PaletteViewModel {
         searchTask?.cancel()
 
         let request = SearchQuery(raw: text)
-
-        if request.mode == .root {
-            // Suggestions for an empty field appear immediately; no debounce.
-            searchTask = Task { [weak self] in
-                let sections = await self?.searchUseCase(request) ?? []
-                guard !Task.isCancelled, let self else { return }
-                let previousSelectedID = self.selectedResultID
-                self.publish(sections)
-                if let previousSelectedID, self.results.contains(where: { $0.id == previousSelectedID }) {
-                    self.selectedResultID = previousSelectedID
-                } else {
-                    self.selectedResultID = self.results.first?.id
-                }
-            }
-            return
-        }
-
         searchTask = Task { [weak self] in
-            // 60 ms: below the perceived-latency floor, above one keystroke
-            // interval, so a fast typist never sees stale results.
-            try? await Task.sleep(for: .milliseconds(60))
-            guard !Task.isCancelled, let self else { return }
+            if request.mode != .root {
+                // 60 ms: below perceived-latency floor, above one keystroke interval.
+                try? await Task.sleep(for: .milliseconds(60))
+                guard !Task.isCancelled else { return }
+            }
 
+            guard let self else { return }
             let sections = await self.searchUseCase(request)
             guard !Task.isCancelled else { return }
+            self.applySearchResults(sections)
+        }
+    }
 
-            let previousSelectedID = self.selectedResultID
-            self.publish(sections)
-            if let previousSelectedID, self.results.contains(where: { $0.id == previousSelectedID }) {
-                self.selectedResultID = previousSelectedID
-            } else {
-                self.selectedResultID = self.results.first?.id
-            }
+    private func applySearchResults(_ sections: [RankedSection]) {
+        let previousSelectedID = selectedResultID
+        publish(sections)
+        if let previousSelectedID, results.contains(where: { $0.id == previousSelectedID }) {
+            selectedResultID = previousSelectedID
+        } else {
+            selectedResultID = results.first?.id
         }
     }
 
@@ -171,8 +143,8 @@ public final class PaletteViewModel {
     @discardableResult
     public func handleEscape() -> Bool {
         if mode == .clipboardHistory {
-            if let cb = clipboardViewModel, !cb.query.isEmpty {
-                cb.updateQuery("")
+            if let clipboard = clipboardViewModel, !clipboard.query.isEmpty {
+                clipboard.updateQuery("")
                 return false
             }
             mode = .launcher
@@ -303,27 +275,5 @@ public final class PaletteViewModel {
         selectedResultID = nil
         applicationsPage = 0
         mode = .launcher
-    }
-
-    private var applicationResults: [SearchResult] {
-        sections.first { $0.section == .applications }?.results ?? []
-    }
-
-    private func applicationResults(onPage page: Int) -> [SearchResult] {
-        Array(
-            SectionPager.slice(
-                applicationResults,
-                page: page,
-                pageSize: applicationsPageSize
-            )
-        )
-    }
-
-    private func firstApplicationID(onPage page: Int) -> SearchResult.ID? {
-        applicationResults(onPage: page).first?.id
-    }
-
-    private func lastApplicationID(onPage page: Int) -> SearchResult.ID? {
-        applicationResults(onPage: page).last?.id
     }
 }

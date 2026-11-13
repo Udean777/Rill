@@ -22,8 +22,8 @@ final class AppEnvironment {
     private let settingsViewModel: SettingsViewModel
     private let updateManager: UpdateManager
 
-    private var currentHotkeyToken: HotkeyToken?
-    private var currentClipboardHotkeyToken: HotkeyToken?
+    var currentHotkeyToken: HotkeyToken?
+    var currentClipboardHotkeyToken: HotkeyToken?
 
     init(
         paletteWindowController: PaletteWindowController,
@@ -87,8 +87,10 @@ final class AppEnvironment {
             directPaster: directPaster
         )
 
+        let imagesDirectoryURL = JSONClipboardStore.defaultImagesDirectoryURL()
         let clipboardWatcher = PasteboardWatcher(
-            imagesDirectoryURL: JSONClipboardStore.defaultImagesDirectoryURL(),
+            imagesDirectoryURL: imagesDirectoryURL,
+            clock: clock,
             onItemCopied: { raw in
                 let prefs = await preferencesStore.load()
                 guard prefs.clipboardHistoryEnabled else { return }
@@ -107,65 +109,18 @@ final class AppEnvironment {
 
         let clipboardViewModel = ClipboardViewModel(
             searchUseCase: searchClipboardUseCase,
-            imagesDirectoryURL: JSONClipboardStore.defaultImagesDirectoryURL()
+            imagesDirectoryURL: imagesDirectoryURL
         )
 
-        clipboardViewModel.onPaste = { [weak windowController, weak viewModel] item, asPlainText in
-            windowController?.hide()
-            viewModel?.reset()
-            Task {
-                let prefs = await preferencesStore.load()
-                do {
-                    try await pasteClipboardUseCase(
-                        item: item,
-                        asPlainText: asPlainText,
-                        imageDirectory: JSONClipboardStore.defaultImagesDirectoryURL(),
-                        triggerDirectPaste: prefs.clipboardDirectPaste
-                    )
-                } catch {
-                    NSSound.beep()
-                }
-            }
-        }
-
-        clipboardViewModel.onCopy = { [weak windowController, weak viewModel] item in
-            windowController?.hide()
-            viewModel?.reset()
-            Task {
-                do {
-                    try await pasteClipboardUseCase(
-                        item: item,
-                        asPlainText: false,
-                        imageDirectory: JSONClipboardStore.defaultImagesDirectoryURL(),
-                        triggerDirectPaste: false
-                    )
-                } catch {
-                    NSSound.beep()
-                }
-            }
-        }
-
-        clipboardViewModel.onTogglePin = { item in
-            Task {
-                await clipboardStore.togglePin(id: item.id)
-            }
-        }
-
-        clipboardViewModel.onDelete = { item in
-            Task {
-                await clipboardStore.delete(id: item.id)
-            }
-        }
-
-        clipboardViewModel.onClearHistory = {
-            Task {
-                await clipboardStore.clearHistory(keepingPinned: true)
-            }
-        }
-
-        clipboardViewModel.onExit = { [weak viewModel] in
-            viewModel?.exitClipboardHistory()
-        }
+        wireClipboardCallbacks(
+            clipboardViewModel: clipboardViewModel,
+            windowController: windowController,
+            paletteViewModel: viewModel,
+            clipboardStore: clipboardStore,
+            preferencesStore: preferencesStore,
+            pasteClipboardUseCase: pasteClipboardUseCase,
+            imagesDirectoryURL: imagesDirectoryURL
+        )
 
         viewModel.clipboardViewModel = clipboardViewModel
 
@@ -175,8 +130,7 @@ final class AppEnvironment {
             windowController?.toggle()
         }
 
-        let settingsViewModel = SettingsViewModel(
-            preferencesStore: preferencesStore,
+        let settingsActions = SettingsActions(
             onHotkeyChanged: { newHotkey in
                 await environmentRef?.updateHotkey(newHotkey) ?? false
             },
@@ -208,13 +162,27 @@ final class AppEnvironment {
                 clipboardViewModel.refresh()
             },
             revealUsageFile: {
-                let url = JSONUsageStore.defaultFileURL()
-                if FileManager.default.fileExists(atPath: url.path) {
-                    NSWorkspace.shared.activateFileViewerSelecting([url])
-                } else {
-                    NSWorkspace.shared.open(url.deletingLastPathComponent())
-                }
+                SystemActionPerformer.revealInFinder(JSONUsageStore.defaultFileURL())
+            },
+            openAccessibilitySettings: {
+                await SystemActionPerformer.openAccessibilitySettings()
+            },
+            checkFullDiskAccess: {
+                SystemActionPerformer.hasFullDiskAccess()
+            },
+            openFullDiskAccessSettings: {
+                await SystemActionPerformer.openFullDiskAccessSettings()
+            },
+            requestProtectedFolderAccess: {
+                await SystemActionPerformer.requestProtectedFolderAccess()
+            },
+            revealApplicationInFinder: {
+                SystemActionPerformer.revealApplicationInFinder()
             }
+        )
+        let settingsViewModel = SettingsViewModel(
+            preferencesStore: preferencesStore,
+            actions: settingsActions
         )
 
         let settingsWindowController = SettingsWindowController(viewModel: settingsViewModel)
@@ -246,60 +214,20 @@ final class AppEnvironment {
             settingsWindowController?.show()
         }
 
-        let log = Logger(subsystem: "com.ssajudn.Rill", category: "actions")
-        viewModel.onExecute = { [weak windowController, weak viewModel, weak settingsWindowController] result in
-            if case .openSettings = result.primaryAction {
-                windowController?.hide()
-                viewModel?.reset()
-                settingsWindowController?.show()
-                return
-            }
+        wirePaletteCallbacks(
+            viewModel: viewModel,
+            windowController: windowController,
+            settingsWindowController: settingsWindowController,
+            executeUseCase: executeUseCase,
+            usageStore: usageStore,
+            clock: clock
+        )
 
-            if case .openClipboardHistory = result.primaryAction {
-                viewModel?.openClipboardHistory()
-                return
-            }
-
-            // Hide instantly, launch immediately, and defer query reset so
-            // SwiftUI re-rendering does not compete with app activation.
-            windowController?.hide(animated: false)
-            Task {
-                do {
-                    try await executeUseCase(result)
-                } catch {
-                    log.error("action failed: \(String(describing: error), privacy: .public)")
-                    NSSound.beep()
-                }
-            }
-            Task { @MainActor in
-                viewModel?.reset()
-            }
-        }
-
-        viewModel.onTogglePin = { [weak viewModel] result in
-            guard let viewModel else { return }
-            let isPinned = result.section == .favorites
-            Task {
-                await usageStore.setPinned(result, isPinned: !isPinned, at: clock.now)
-                viewModel.refresh()
-            }
-        }
-
-        let updateManager = UpdateManager()
-        updateManager.onStateChanged = { [weak settingsViewModel] newState in
-            settingsViewModel?.updateState = newState
-        }
-        settingsViewModel.onCheckForUpdates = { [weak updateManager] in
-            Task {
-                await updateManager?.checkForUpdates(isUserInitiated: true)
-            }
-        }
-        settingsViewModel.onInstallUpdate = { [weak updateManager] in
-            updateManager?.downloadAndInstallUpdate()
-        }
-        settingsViewModel.onRestartToUpdate = { [weak updateManager] in
-            updateManager?.quitAfterUpdate(relaunch: true)
-        }
+        let updateManager = UpdateManager(clock: clock)
+        wireUpdateCallbacks(
+            updateManager: updateManager,
+            settingsViewModel: settingsViewModel
+        )
 
         let env = AppEnvironment(
             paletteWindowController: windowController,
@@ -333,8 +261,8 @@ final class AppEnvironment {
         Task {
             let prefs = await preferencesStore.load()
             apply(preferences: prefs)
-            settingsViewModel.isHotkeyRegistered = await registerHotkey(prefs.hotkey)
-            settingsViewModel.isClipboardHotkeyRegistered = await registerClipboardHotkey(prefs.clipboardHotkey)
+            settingsViewModel.isHotkeyRegistered = await updateHotkey(prefs.hotkey)
+            settingsViewModel.isClipboardHotkeyRegistered = await updateClipboardHotkey(prefs.clipboardHotkey)
             if !prefs.hasCompletedOnboarding {
                 onboardingWindowController.show()
             }
@@ -352,62 +280,8 @@ final class AppEnvironment {
         statusBarController.setEnabled(preferences.statusBarEnabled)
         paletteWindowController.apply(preferences: preferences)
     }
-
-    /// - Returns: `false` when the new shortcut is taken; the old one stays live.
-    func updateHotkey(_ hotkey: Hotkey) async -> Bool {
-        do {
-            // Register first: a failed registration must not leave the user
-            // without any hotkey.
-            let token = try await hotkeyManager.register(hotkey)
-            if let currentHotkeyToken {
-                await hotkeyManager.unregister(currentHotkeyToken)
-            }
-            currentHotkeyToken = token
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    private func registerHotkey(_ hotkey: Hotkey) async -> Bool {
-        do {
-            let token = try await hotkeyManager.register(hotkey)
-            self.currentHotkeyToken = token
-            return true
-        } catch {
-            // CarbonHotkeyManager logged the failure
-            return false
-        }
-    }
-
-    func updateClipboardHotkey(_ hotkey: Hotkey) async -> Bool {
-        do {
-            let token = try await hotkeyManager.register(hotkey) { [weak paletteWindowController] in
-                paletteWindowController?.toggleClipboardHistory()
-            }
-            if let currentClipboardHotkeyToken {
-                await hotkeyManager.unregister(currentClipboardHotkeyToken)
-            }
-            currentClipboardHotkeyToken = token
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    private func registerClipboardHotkey(_ hotkey: Hotkey) async -> Bool {
-        do {
-            let token = try await hotkeyManager.register(hotkey) { [weak paletteWindowController] in
-                paletteWindowController?.toggleClipboardHistory()
-            }
-            self.currentClipboardHotkeyToken = token
-            return true
-        } catch {
-            return false
-        }
-    }
 }
 
-private struct SystemClock: RillDomain.Clock {
+struct SystemClock: RillDomain.Clock {
     var now: Date { Date() }
 }

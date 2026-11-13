@@ -37,71 +37,59 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
     }
 
     public func load() async -> Preferences {
-        let fileSearchEnabled = userDefaults.object(forKey: Key.fileSearchEnabled) as? Bool ?? Preferences.default.fileSearchEnabled
-
-        let hotkey: Hotkey
-        if let rawKeyCode = userDefaults.object(forKey: Key.hotkeyKeyCode) as? UInt32,
-           let rawModifiers = userDefaults.object(forKey: Key.hotkeyModifiers) as? UInt32 {
-            hotkey = Hotkey(keyCode: rawKeyCode, modifiers: HotkeyModifiers(rawValue: rawModifiers))
-        } else {
-            hotkey = Preferences.default.hotkey
-        }
-
-        let clipboardHotkey: Hotkey
-        if let rawKeyCode = userDefaults.object(forKey: Key.clipboardHotkeyKeyCode) as? UInt32,
-           let rawModifiers = userDefaults.object(forKey: Key.clipboardHotkeyModifiers) as? UInt32 {
-            clipboardHotkey = Hotkey(keyCode: rawKeyCode, modifiers: HotkeyModifiers(rawValue: rawModifiers))
-        } else {
-            clipboardHotkey = Preferences.default.clipboardHotkey
-        }
-
+        let defaults = Preferences.default
         let scopeString = userDefaults.string(forKey: Key.fileSearchScope) ?? ""
-        let scope = FileSearchScope(rawValue: scopeString) ?? Preferences.default.fileSearchScope
+        let scope = FileSearchScope(rawValue: scopeString) ?? defaults.fileSearchScope
 
         return Preferences(
-            hotkey: hotkey,
-            fileSearchEnabled: fileSearchEnabled,
+            hotkey: loadHotkey(
+                keyCodeKey: Key.hotkeyKeyCode,
+                modifiersKey: Key.hotkeyModifiers,
+                default: defaults.hotkey
+            ),
+            fileSearchEnabled: value(forKey: Key.fileSearchEnabled, default: defaults.fileSearchEnabled),
             fileSearchScope: scope,
-            fileSearchIncludeFiles: userDefaults.object(forKey: Key.fileSearchIncludeFiles) as? Bool
-                ?? Preferences.default.fileSearchIncludeFiles,
-            fileSearchIncludeFolders: userDefaults.object(forKey: Key.fileSearchIncludeFolders) as? Bool
-                ?? Preferences.default.fileSearchIncludeFolders,
-            fileSearchIncludeHidden: userDefaults.object(forKey: Key.fileSearchIncludeHidden) as? Bool
-                ?? Preferences.default.fileSearchIncludeHidden,
+            fileSearchIncludeFiles: value(forKey: Key.fileSearchIncludeFiles, default: defaults.fileSearchIncludeFiles),
+            fileSearchIncludeFolders: value(forKey: Key.fileSearchIncludeFolders, default: defaults.fileSearchIncludeFolders),
+            fileSearchIncludeHidden: value(forKey: Key.fileSearchIncludeHidden, default: defaults.fileSearchIncludeHidden),
             fileSearchCustomPaths: userDefaults.stringArray(forKey: Key.fileSearchCustomPaths)
-                ?? Preferences.default.fileSearchCustomPaths,
+                ?? defaults.fileSearchCustomPaths,
             fileSearchExcludedPaths: userDefaults.stringArray(forKey: Key.fileSearchExcludedPaths)
-                ?? Preferences.default.fileSearchExcludedPaths,
-            suggestionWindowDays: userDefaults.object(forKey: Key.suggestionWindowDays) as? Int
-                ?? Preferences.default.suggestionWindowDays,
-            applicationsPerPage: userDefaults.object(forKey: Key.applicationsPerPage) as? Int
-                ?? Preferences.default.applicationsPerPage,
-            statusBarEnabled: userDefaults.object(forKey: Key.statusBarEnabled) as? Bool
-                ?? Preferences.default.statusBarEnabled,
-            showKeyboardHints: userDefaults.object(forKey: Key.showKeyboardHints) as? Bool
-                ?? Preferences.default.showKeyboardHints,
-            hasCompletedOnboarding: userDefaults.object(forKey: Key.completedOnboarding) as? Bool
-                ?? Preferences.default.hasCompletedOnboarding,
-            clipboardHistoryEnabled: userDefaults.object(forKey: Key.clipboardHistoryEnabled) as? Bool
-                ?? Preferences.default.clipboardHistoryEnabled,
-            clipboardHotkey: clipboardHotkey,
-            clipboardHistoryLimit: userDefaults.object(forKey: Key.clipboardHistoryLimit) as? Int
-                ?? Preferences.default.clipboardHistoryLimit,
-            clipboardDirectPaste: userDefaults.object(forKey: Key.clipboardDirectPaste) as? Bool
-                ?? Preferences.default.clipboardDirectPaste,
-            clipboardSaveImages: userDefaults.object(forKey: Key.clipboardSaveImages) as? Bool
-                ?? Preferences.default.clipboardSaveImages,
-            currencyConversionEnabled: userDefaults.object(forKey: Key.currencyConversionEnabled) as? Bool
-                ?? Preferences.default.currencyConversionEnabled,
-            calculatorEnabled: userDefaults.object(forKey: Key.calculatorEnabled) as? Bool
-                ?? Preferences.default.calculatorEnabled,
-            webSearchEnabled: userDefaults.object(forKey: Key.webSearchEnabled) as? Bool
-                ?? Preferences.default.webSearchEnabled,
+                ?? defaults.fileSearchExcludedPaths,
+            suggestionWindowDays: value(forKey: Key.suggestionWindowDays, default: defaults.suggestionWindowDays),
+            applicationsPerPage: value(forKey: Key.applicationsPerPage, default: defaults.applicationsPerPage),
+            statusBarEnabled: value(forKey: Key.statusBarEnabled, default: defaults.statusBarEnabled),
+            showKeyboardHints: value(forKey: Key.showKeyboardHints, default: defaults.showKeyboardHints),
+            hasCompletedOnboarding: value(forKey: Key.completedOnboarding, default: defaults.hasCompletedOnboarding),
+            clipboardHistoryEnabled: value(forKey: Key.clipboardHistoryEnabled, default: defaults.clipboardHistoryEnabled),
+            clipboardHotkey: loadHotkey(
+                keyCodeKey: Key.clipboardHotkeyKeyCode,
+                modifiersKey: Key.clipboardHotkeyModifiers,
+                default: defaults.clipboardHotkey
+            ),
+            clipboardHistoryLimit: value(forKey: Key.clipboardHistoryLimit, default: defaults.clipboardHistoryLimit),
+            clipboardDirectPaste: value(forKey: Key.clipboardDirectPaste, default: defaults.clipboardDirectPaste),
+            clipboardSaveImages: value(forKey: Key.clipboardSaveImages, default: defaults.clipboardSaveImages),
+            currencyConversionEnabled: value(forKey: Key.currencyConversionEnabled, default: defaults.currencyConversionEnabled),
+            calculatorEnabled: value(forKey: Key.calculatorEnabled, default: defaults.calculatorEnabled),
+            webSearchEnabled: value(forKey: Key.webSearchEnabled, default: defaults.webSearchEnabled),
             hiddenSections: Set(
                 (userDefaults.stringArray(forKey: Key.hiddenSections) ?? [])
                     .compactMap(Section.init(rawValue:))
             )
         ).sanitized()
+    }
+
+    private func value<T>(forKey key: String, default fallback: T) -> T {
+        userDefaults.object(forKey: key) as? T ?? fallback
+    }
+
+    private func loadHotkey(keyCodeKey: String, modifiersKey: String, default fallback: Hotkey) -> Hotkey {
+        guard let rawKeyCode = userDefaults.object(forKey: keyCodeKey) as? UInt32,
+              let rawModifiers = userDefaults.object(forKey: modifiersKey) as? UInt32 else {
+            return fallback
+        }
+        return Hotkey(keyCode: rawKeyCode, modifiers: HotkeyModifiers(rawValue: rawModifiers))
     }
 
     public func save(_ preferences: Preferences) async {

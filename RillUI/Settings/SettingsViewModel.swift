@@ -2,41 +2,24 @@ import Foundation
 import Observation
 import RillDomain
 
-/// Presentation state for the Settings window
-@MainActor
-@Observable
-public final class SettingsViewModel {
-    public var preferences: Preferences
-    public var isAccessibilityGranted: Bool = false
-    public var isLaunchAtLoginEnabled: Bool = false
-    public var launchAtLoginError: String?
-    public var hotkeyError: String?
-    /// Whether the stored shortcut is currently registered with the system.
-    public var isHotkeyRegistered = true
-    public var clipboardHotkeyError: String?
-    public var isClipboardHotkeyRegistered = true
-    public var updateState: UpdateState = .idle
-
-    private let preferencesStore: PreferencesStoring
-    private let onHotkeyChanged: ((Hotkey) async -> Bool)?
-    private let onClipboardHotkeyChanged: ((Hotkey) async -> Bool)?
-    private let onPreferencesChanged: ((Preferences) -> Void)?
-    private let getLaunchAtLogin: (() -> Bool)?
-    private let setLaunchAtLogin: ((Bool) throws -> Void)?
-    private let checkAccessibility: (() -> Bool)?
-    private let resetUsage: (() async -> Void)?
-    private let clearPins: (() async -> Void)?
-    private let clearClipboardHistory: (() async -> Void)?
-    private let revealUsageFile: (() -> Void)?
-
-    /// Assigned by the composition root once the welcome window exists.
-    @ObservationIgnored public var onShowWelcome: (() -> Void)?
-    @ObservationIgnored public var onCheckForUpdates: (() -> Void)?
-    @ObservationIgnored public var onInstallUpdate: (() -> Void)?
-    @ObservationIgnored public var onRestartToUpdate: (() -> Void)?
+public struct SettingsActions {
+    public var onHotkeyChanged: ((Hotkey) async -> Bool)?
+    public var onClipboardHotkeyChanged: ((Hotkey) async -> Bool)?
+    public var onPreferencesChanged: ((Preferences) -> Void)?
+    public var getLaunchAtLogin: (() -> Bool)?
+    public var setLaunchAtLogin: ((Bool) throws -> Void)?
+    public var checkAccessibility: (() -> Bool)?
+    public var resetUsage: (() async -> Void)?
+    public var clearPins: (() async -> Void)?
+    public var clearClipboardHistory: (() async -> Void)?
+    public var revealUsageFile: (() -> Void)?
+    public var openAccessibilitySettings: (() async -> Void)?
+    public var checkFullDiskAccess: (() -> Bool)?
+    public var openFullDiskAccessSettings: (() async -> Void)?
+    public var requestProtectedFolderAccess: (() async -> Void)?
+    public var revealApplicationInFinder: (() -> Void)?
 
     public init(
-        preferencesStore: PreferencesStoring,
         onHotkeyChanged: ((Hotkey) async -> Bool)? = nil,
         onClipboardHotkeyChanged: ((Hotkey) async -> Bool)? = nil,
         onPreferencesChanged: ((Preferences) -> Void)? = nil,
@@ -46,10 +29,13 @@ public final class SettingsViewModel {
         resetUsage: (() async -> Void)? = nil,
         clearPins: (() async -> Void)? = nil,
         clearClipboardHistory: (() async -> Void)? = nil,
-        revealUsageFile: (() -> Void)? = nil
+        revealUsageFile: (() -> Void)? = nil,
+        openAccessibilitySettings: (() async -> Void)? = nil,
+        checkFullDiskAccess: (() -> Bool)? = nil,
+        openFullDiskAccessSettings: (() async -> Void)? = nil,
+        requestProtectedFolderAccess: (() async -> Void)? = nil,
+        revealApplicationInFinder: (() -> Void)? = nil
     ) {
-        self.preferencesStore = preferencesStore
-        self.preferences = .default
         self.onHotkeyChanged = onHotkeyChanged
         self.onClipboardHotkeyChanged = onClipboardHotkeyChanged
         self.onPreferencesChanged = onPreferencesChanged
@@ -60,6 +46,47 @@ public final class SettingsViewModel {
         self.clearPins = clearPins
         self.clearClipboardHistory = clearClipboardHistory
         self.revealUsageFile = revealUsageFile
+        self.openAccessibilitySettings = openAccessibilitySettings
+        self.checkFullDiskAccess = checkFullDiskAccess
+        self.openFullDiskAccessSettings = openFullDiskAccessSettings
+        self.requestProtectedFolderAccess = requestProtectedFolderAccess
+        self.revealApplicationInFinder = revealApplicationInFinder
+    }
+}
+
+/// Presentation state for the Settings window.
+@MainActor
+@Observable
+public final class SettingsViewModel {
+    public var preferences: Preferences
+    public var isAccessibilityGranted: Bool = false
+    public var isFullDiskAccessGranted: Bool = false
+    public var isRequestingFolderAccess: Bool = false
+    public var isLaunchAtLoginEnabled: Bool = false
+    public var launchAtLoginError: String?
+    public var hotkeyError: String?
+    /// Whether the stored shortcut is currently registered with the system.
+    public var isHotkeyRegistered = true
+    public var clipboardHotkeyError: String?
+    public var isClipboardHotkeyRegistered = true
+    public var updateState: UpdateState = .idle
+
+    private let preferencesStore: PreferencesStoring
+    private let actions: SettingsActions
+
+    /// Assigned by the composition root once the welcome window exists.
+    @ObservationIgnored public var onShowWelcome: (() -> Void)?
+    @ObservationIgnored public var onCheckForUpdates: (() -> Void)?
+    @ObservationIgnored public var onInstallUpdate: (() -> Void)?
+    @ObservationIgnored public var onRestartToUpdate: (() -> Void)?
+
+    public init(
+        preferencesStore: PreferencesStoring,
+        actions: SettingsActions = SettingsActions()
+    ) {
+        self.preferencesStore = preferencesStore
+        self.preferences = .default
+        self.actions = actions
     }
 
     public func load() async {
@@ -68,98 +95,66 @@ public final class SettingsViewModel {
     }
 
     public func refreshStatus() {
-        if let checkAccessibility {
+        if let checkAccessibility = actions.checkAccessibility {
             isAccessibilityGranted = checkAccessibility()
         }
-        if let getLaunchAtLogin {
+        if let checkFullDiskAccess = actions.checkFullDiskAccess {
+            isFullDiskAccessGranted = checkFullDiskAccess()
+        }
+        if let getLaunchAtLogin = actions.getLaunchAtLogin {
             isLaunchAtLoginEnabled = getLaunchAtLogin()
         }
     }
 
     public func updateHotkey(_ newHotkey: Hotkey) {
         guard preferences.hotkey != newHotkey else { return }
-        let previous = preferences.hotkey
-        preferences.hotkey = newHotkey
-        hotkeyError = nil
-
         Task {
-            let registered = await onHotkeyChanged?(newHotkey) ?? true
-            isHotkeyRegistered = registered
-            guard registered else {
-                // Keep the working shortcut; the recorder shows the old one again.
-                preferences.hotkey = previous
-                hotkeyError = String(
-                    localized: "That shortcut is already used by another app."
-                )
-                return
-            }
-            await preferencesStore.save(preferences)
+            await applyHotkey(
+                newHotkey,
+                keyPath: \.hotkey,
+                registeredKeyPath: \.isHotkeyRegistered,
+                errorKeyPath: \.hotkeyError,
+                conflictMessage: String(localized: "That shortcut is already used by another app."),
+                register: actions.onHotkeyChanged
+            )
         }
     }
 
-    public func updateFileSearchEnabled(_ enabled: Bool) {
-        guard preferences.fileSearchEnabled != enabled else { return }
-        preferences.fileSearchEnabled = enabled
-        save()
-    }
-
-    public func updateFileSearchIncludeFiles(_ include: Bool) {
-        guard preferences.fileSearchIncludeFiles != include else { return }
-        preferences.fileSearchIncludeFiles = include
-        save()
-    }
-
-    public func updateFileSearchIncludeFolders(_ include: Bool) {
-        guard preferences.fileSearchIncludeFolders != include else { return }
-        preferences.fileSearchIncludeFolders = include
-        save()
-    }
-
-    public func updateFileSearchIncludeHidden(_ include: Bool) {
-        guard preferences.fileSearchIncludeHidden != include else { return }
-        preferences.fileSearchIncludeHidden = include
-        save()
-    }
-
-    public func updateFileSearchScope(_ scope: FileSearchScope) {
-        guard preferences.fileSearchScope != scope else { return }
-        preferences.fileSearchScope = scope
+    /// Updates any equatable preference field and persists the change.
+    public func update<Value: Equatable>(
+        _ keyPath: WritableKeyPath<Preferences, Value>,
+        to value: Value
+    ) {
+        guard preferences[keyPath: keyPath] != value else { return }
+        preferences[keyPath: keyPath] = value
         save()
     }
 
     public func addFileSearchCustomPath(_ path: String) {
-        let normalized = Self.normalizePath(path)
-        guard !normalized.isEmpty, !preferences.fileSearchCustomPaths.contains(normalized) else { return }
-        preferences.fileSearchCustomPaths.append(normalized)
-        save()
+        addPath(path, to: \.fileSearchCustomPaths)
     }
 
     public func removeFileSearchCustomPath(_ path: String) {
-        preferences.fileSearchCustomPaths.removeAll { $0 == path }
-        save()
+        removePath(path, from: \.fileSearchCustomPaths)
     }
 
     public func addFileSearchExcludedPath(_ path: String) {
-        let normalized = Self.normalizePath(path)
-        guard !normalized.isEmpty, !preferences.fileSearchExcludedPaths.contains(normalized) else { return }
-        preferences.fileSearchExcludedPaths.append(normalized)
-        save()
+        addPath(path, to: \.fileSearchExcludedPaths)
     }
 
     public func removeFileSearchExcludedPath(_ path: String) {
-        preferences.fileSearchExcludedPaths.removeAll { $0 == path }
+        removePath(path, from: \.fileSearchExcludedPaths)
+    }
+
+    private func addPath(_ path: String, to keyPath: WritableKeyPath<Preferences, [String]>) {
+        let normalized = Self.normalizePath(path)
+        guard !normalized.isEmpty, !preferences[keyPath: keyPath].contains(normalized) else { return }
+        preferences[keyPath: keyPath].append(normalized)
         save()
     }
 
-    public func updateCalculatorEnabled(_ enabled: Bool) {
-        guard preferences.calculatorEnabled != enabled else { return }
-        preferences.calculatorEnabled = enabled
-        save()
-    }
-
-    public func updateWebSearchEnabled(_ enabled: Bool) {
-        guard preferences.webSearchEnabled != enabled else { return }
-        preferences.webSearchEnabled = enabled
+    private func removePath(_ path: String, from keyPath: WritableKeyPath<Preferences, [String]>) {
+        preferences[keyPath: keyPath].removeAll { $0 == path }
         save()
     }
 
@@ -167,60 +162,6 @@ public final class SettingsViewModel {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count > 1, trimmed.hasSuffix("/") else { return trimmed }
         return String(trimmed.dropLast())
-    }
-
-    public func updateSuggestionWindowDays(_ days: Int) {
-        guard preferences.suggestionWindowDays != days else { return }
-        preferences.suggestionWindowDays = days
-        save()
-    }
-
-    public func updateApplicationsPerPage(_ count: Int) {
-        guard preferences.applicationsPerPage != count else { return }
-        preferences.applicationsPerPage = count
-        save()
-    }
-
-    public func updateStatusBarEnabled(_ enabled: Bool) {
-        guard preferences.statusBarEnabled != enabled else { return }
-        preferences.statusBarEnabled = enabled
-        save()
-    }
-
-    public func updateShowKeyboardHints(_ enabled: Bool) {
-        guard preferences.showKeyboardHints != enabled else { return }
-        preferences.showKeyboardHints = enabled
-        save()
-    }
-
-    public func updateClipboardHistoryEnabled(_ enabled: Bool) {
-        guard preferences.clipboardHistoryEnabled != enabled else { return }
-        preferences.clipboardHistoryEnabled = enabled
-        save()
-    }
-
-    public func updateClipboardHistoryLimit(_ limit: Int) {
-        guard preferences.clipboardHistoryLimit != limit else { return }
-        preferences.clipboardHistoryLimit = limit
-        save()
-    }
-
-    public func updateClipboardDirectPaste(_ enabled: Bool) {
-        guard preferences.clipboardDirectPaste != enabled else { return }
-        preferences.clipboardDirectPaste = enabled
-        save()
-    }
-
-    public func updateClipboardSaveImages(_ enabled: Bool) {
-        guard preferences.clipboardSaveImages != enabled else { return }
-        preferences.clipboardSaveImages = enabled
-        save()
-    }
-
-    public func updateCurrencyConversionEnabled(_ enabled: Bool) {
-        guard preferences.currencyConversionEnabled != enabled else { return }
-        preferences.currencyConversionEnabled = enabled
-        save()
     }
 
     public func updateSectionVisibility(_ section: Section, isVisible: Bool) {
@@ -234,25 +175,41 @@ public final class SettingsViewModel {
 
     public func updateClipboardHotkey(_ newHotkey: Hotkey) async {
         guard newHotkey != preferences.clipboardHotkey else { return }
-        let previousHotkey = preferences.clipboardHotkey
-        preferences.clipboardHotkey = newHotkey
+        await applyHotkey(
+            newHotkey,
+            keyPath: \.clipboardHotkey,
+            registeredKeyPath: \.isClipboardHotkeyRegistered,
+            errorKeyPath: \.clipboardHotkeyError,
+            conflictMessage: String(localized: "This shortcut is in use by another application."),
+            register: actions.onClipboardHotkeyChanged
+        )
+    }
 
-        let registered = await onClipboardHotkeyChanged?(newHotkey) ?? true
-        isClipboardHotkeyRegistered = registered
+    private func applyHotkey(
+        _ newHotkey: Hotkey,
+        keyPath: WritableKeyPath<Preferences, Hotkey>,
+        registeredKeyPath: ReferenceWritableKeyPath<SettingsViewModel, Bool>,
+        errorKeyPath: ReferenceWritableKeyPath<SettingsViewModel, String?>,
+        conflictMessage: String,
+        register: ((Hotkey) async -> Bool)?
+    ) async {
+        let previous = preferences[keyPath: keyPath]
+        preferences[keyPath: keyPath] = newHotkey
+        self[keyPath: errorKeyPath] = nil
 
+        let registered = await register?(newHotkey) ?? true
+        self[keyPath: registeredKeyPath] = registered
         guard registered else {
-            preferences.clipboardHotkey = previousHotkey
-            clipboardHotkeyError = String(localized: "This shortcut is in use by another application.")
+            preferences[keyPath: keyPath] = previous
+            self[keyPath: errorKeyPath] = conflictMessage
             return
         }
-
-        clipboardHotkeyError = nil
-        save()
+        await preferencesStore.save(preferences)
     }
 
     public func clearClipboardHistoryAction() {
         Task {
-            await clearClipboardHistory?()
+            await actions.clearClipboardHistory?()
         }
     }
 
@@ -271,7 +228,7 @@ public final class SettingsViewModel {
         }
 
         Task {
-            let registered = await onHotkeyChanged?(preferences.hotkey) ?? true
+            let registered = await actions.onHotkeyChanged?(preferences.hotkey) ?? true
             isHotkeyRegistered = registered
             guard registered else {
                 preferences.hotkey = previousHotkey
@@ -281,13 +238,12 @@ public final class SettingsViewModel {
                 save()
                 return
             }
-            await preferencesStore.save(preferences)
-            onPreferencesChanged?(preferences)
+            save()
         }
     }
 
     public func toggleLaunchAtLogin(_ enabled: Bool) {
-        guard let setLaunchAtLogin else { return }
+        guard let setLaunchAtLogin = actions.setLaunchAtLogin else { return }
         do {
             try setLaunchAtLogin(enabled)
             isLaunchAtLoginEnabled = enabled
@@ -300,13 +256,13 @@ public final class SettingsViewModel {
 
     public func clearUsageHistory() {
         Task {
-            await resetUsage?()
+            await actions.resetUsage?()
         }
     }
 
     public func clearPinnedItems() {
         Task {
-            await clearPins?()
+            await actions.clearPins?()
         }
     }
 
@@ -315,7 +271,35 @@ public final class SettingsViewModel {
     }
 
     public func revealUsageData() {
-        revealUsageFile?()
+        actions.revealUsageFile?()
+    }
+
+    public func openAccessibilitySettings() {
+        Task {
+            await actions.openAccessibilitySettings?()
+            refreshStatus()
+        }
+    }
+
+    public func openFullDiskAccessSettings() {
+        Task {
+            await actions.openFullDiskAccessSettings?()
+            refreshStatus()
+        }
+    }
+
+    public func revealApplicationInFinder() {
+        actions.revealApplicationInFinder?()
+    }
+
+    public func requestProtectedFolderAccess() {
+        guard !isRequestingFolderAccess else { return }
+        isRequestingFolderAccess = true
+        Task {
+            await actions.requestProtectedFolderAccess?()
+            isRequestingFolderAccess = false
+            refreshStatus()
+        }
     }
 
     public func checkForUpdates() {
@@ -336,7 +320,7 @@ public final class SettingsViewModel {
             await preferencesStore.save(snapshot)
             // Apply after persisting: the palette re-runs its search and reads
             // these values back from the store.
-            onPreferencesChanged?(snapshot)
+            actions.onPreferencesChanged?(snapshot)
         }
     }
 }

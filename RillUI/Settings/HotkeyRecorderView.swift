@@ -38,7 +38,7 @@ public final class HotkeyRecorderNSView: NSView {
 
     private var isRecording = false {
         didSet {
-            button.title = isRecording ? "Type shortcut..." : formatHotkey(currentHotkey)
+            button.title = isRecording ? String(localized: "Type shortcut...") : formatHotkey(currentHotkey)
             button.highlight(isRecording)
         }
     }
@@ -121,76 +121,24 @@ public final class HotkeyRecorderNSView: NSView {
         onHotkeyChanged?(newHotkey)
     }
 
+    private static let keyNames: [UInt32: String] = [
+        0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X", 8: "C", 9: "V",
+        11: "B", 12: "Q", 13: "W", 14: "E", 15: "R", 16: "Y", 17: "T",
+        18: "1", 19: "2", 20: "3", 21: "4", 22: "6", 23: "5", 24: "=", 25: "9",
+        26: "7", 27: "-", 28: "8", 29: "0", 30: "]", 31: "O", 32: "U", 33: "[",
+        34: "I", 35: "P", 36: "Return", 37: "L", 38: "J", 39: "'", 40: "K", 41: ";",
+        42: "\\", 43: ",", 44: "/", 45: "N", 46: "M", 47: ".", 48: "Tab", 49: "Space",
+        50: "`", 51: "Delete", 53: "Esc",
+        123: "←", 124: "→", 125: "↓", 126: "↑",
+    ]
+
     private func formatHotkey(_ hotkey: Hotkey) -> String {
         var parts: [String] = []
         if hotkey.modifiers.contains(.control) { parts.append("⌃") }
         if hotkey.modifiers.contains(.option) { parts.append("⌥") }
         if hotkey.modifiers.contains(.shift) { parts.append("⇧") }
         if hotkey.modifiers.contains(.command) { parts.append("⌘") }
-
-        let keyString: String
-        switch hotkey.keyCode {
-        case 0: keyString = "A"
-        case 1: keyString = "S"
-        case 2: keyString = "D"
-        case 3: keyString = "F"
-        case 4: keyString = "H"
-        case 5: keyString = "G"
-        case 6: keyString = "Z"
-        case 7: keyString = "X"
-        case 8: keyString = "C"
-        case 9: keyString = "V"
-        case 11: keyString = "B"
-        case 12: keyString = "Q"
-        case 13: keyString = "W"
-        case 14: keyString = "E"
-        case 15: keyString = "R"
-        case 16: keyString = "Y"
-        case 17: keyString = "T"
-        case 18: keyString = "1"
-        case 19: keyString = "2"
-        case 20: keyString = "3"
-        case 21: keyString = "4"
-        case 22: keyString = "6"
-        case 23: keyString = "5"
-        case 24: keyString = "="
-        case 25: keyString = "9"
-        case 26: keyString = "7"
-        case 27: keyString = "-"
-        case 28: keyString = "8"
-        case 29: keyString = "0"
-        case 30: keyString = "]"
-        case 31: keyString = "O"
-        case 32: keyString = "U"
-        case 33: keyString = "["
-        case 34: keyString = "I"
-        case 35: keyString = "P"
-        case 36: keyString = "Return"
-        case 37: keyString = "L"
-        case 38: keyString = "J"
-        case 39: keyString = "'"
-        case 40: keyString = "K"
-        case 41: keyString = ";"
-        case 42: keyString = "\\"
-        case 43: keyString = ","
-        case 44: keyString = "/"
-        case 45: keyString = "N"
-        case 46: keyString = "M"
-        case 47: keyString = "."
-        case 48: keyString = "Tab"
-        case 49: keyString = "Space"
-        case 50: keyString = "`"
-        case 51: keyString = "Delete"
-        case 53: keyString = "Esc"
-        case 123: keyString = "←"
-        case 124: keyString = "→"
-        case 125: keyString = "↓"
-        case 126: keyString = "↑"
-        default:
-            keyString = "Key \(hotkey.keyCode)"
-        }
-        parts.append(keyString)
-
+        parts.append(Self.keyNames[hotkey.keyCode] ?? "Key \(hotkey.keyCode)")
         return parts.joined()
     }
 }

@@ -6,10 +6,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var environment: AppEnvironment?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Declared in Info.plist too (LSUIElement); repeated here so a stale
-        // activation-policy override from a previous launch cannot leave a
-        // Dock tile behind.
-        NSApp.setActivationPolicy(.accessory)
+        // Repeated here alongside Info.plist (LSUIElement) to clear any stale
+        // activation-policy override from a previous launch.
+        ActivationPolicyController.shared.ensureAccessory()
 
         let environment = AppEnvironment.live()
         self.environment = environment

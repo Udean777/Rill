@@ -23,19 +23,19 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate {
         let settingsView = SettingsView(viewModel: viewModel)
         let hostingView = NSHostingView(rootView: settingsView)
 
-        let window = SettingsWindow(
+        let window = AuxiliaryWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 420),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
-        window.title = "Rill Settings"
+        window.title = String(localized: "Rill Settings")
         window.contentView = hostingView
         // Stay on the space the user is actually looking at. Without this, a
         // fullscreen app makes macOS yank the user back to the desktop space
         // where the window was last placed.
         window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-        centerOnActiveScreen(window)
+        window.centerOnActiveScreen()
         window.delegate = self
         window.isReleasedWhenClosed = false
 
@@ -51,25 +51,11 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate {
     public func windowWillClose(_ notification: Notification) {
         window = nil
     }
-
-    /// Centers on the display the pointer is on, so a fullscreen app on another
-    /// display opens Settings where the user is, not on the main display.
-    private func centerOnActiveScreen(_ window: NSWindow) {
-        guard let screen = PanelPositioner.screenUnderPointer() ?? window.screen else {
-            window.center()
-            return
-        }
-        let visible = screen.visibleFrame
-        window.setFrameOrigin(NSPoint(
-            x: visible.midX - window.frame.width / 2,
-            y: visible.midY - window.frame.height / 2
-        ))
-    }
 }
 
-/// Supports `⌘W` to close Settings while `.accessory` (no app menu bar),
+/// Supports `⌘W` to close auxiliary windows while `.accessory` (no app menu bar),
 /// without enabling `⌘Q` to quit the background launcher.
-private final class SettingsWindow: NSWindow {
+final class AuxiliaryWindow: NSWindow {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if super.performKeyEquivalent(with: event) {
             return true
@@ -80,5 +66,19 @@ private final class SettingsWindow: NSWindow {
             return true
         }
         return false
+    }
+
+    /// Centers on the display the pointer is on, so a fullscreen app on another
+    /// display opens the window where the user is, not on the main display.
+    func centerOnActiveScreen() {
+        guard let screen = PanelPositioner.screenUnderPointer() ?? screen else {
+            center()
+            return
+        }
+        let visible = screen.visibleFrame
+        setFrameOrigin(NSPoint(
+            x: visible.midX - frame.width / 2,
+            y: visible.midY - frame.height / 2
+        ))
     }
 }

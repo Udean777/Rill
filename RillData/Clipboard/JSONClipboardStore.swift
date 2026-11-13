@@ -23,29 +23,11 @@ public actor JSONClipboardStore: ClipboardStoring {
     }
 
     public static func defaultFileURL() -> URL {
-        let base =
-            FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first
-            ?? FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Library/Application Support", isDirectory: true)
-
-        return base
-            .appendingPathComponent("Rill", isDirectory: true)
-            .appendingPathComponent("clipboard.json", isDirectory: false)
+        AppSupportDirectory.file("clipboard.json")
     }
 
     public static func defaultImagesDirectoryURL() -> URL {
-        let base =
-            FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first
-            ?? FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Library/Application Support", isDirectory: true)
-
-        return base
-            .appendingPathComponent("Rill", isDirectory: true)
-            .appendingPathComponent("ClipboardImages", isDirectory: true)
+        AppSupportDirectory.directory("ClipboardImages")
     }
 
     public func items(matching query: String, filter: ClipboardFilter, limit: Int) async -> [ClipboardItem] {
@@ -90,11 +72,7 @@ public actor JSONClipboardStore: ClipboardStoring {
     public func save(_ item: ClipboardItem) async {
         var current = loaded()
 
-        // Deduplication: if the exact same content exists at the very top, update timestamp
-        if let first = current.first,
-           first.textContent == item.textContent,
-           first.contentType == item.contentType,
-           first.metadata.imageFileName == item.metadata.imageFileName {
+        if let first = current.first, matchesContent(first, item) {
             var updated = first
             updated.isPinned = first.isPinned || item.isPinned
             current[0] = updated
@@ -103,12 +81,7 @@ public actor JSONClipboardStore: ClipboardStoring {
             return
         }
 
-        // If duplicate exists elsewhere in history, remove old instance so newest is on top
-        if let existingIndex = current.firstIndex(where: {
-            $0.textContent == item.textContent &&
-            $0.contentType == item.contentType &&
-            $0.metadata.imageFileName == item.metadata.imageFileName
-        }) {
+        if let existingIndex = current.firstIndex(where: { matchesContent($0, item) }) {
             let wasPinned = current[existingIndex].isPinned
             var newItem = item
             newItem.isPinned = wasPinned || item.isPinned
@@ -118,18 +91,22 @@ public actor JSONClipboardStore: ClipboardStoring {
             current.insert(item, at: 0)
         }
 
-        // Enforce max history limit, protecting pinned items
         current = prune(current)
 
         itemsCache = current
         persist(current)
     }
 
+    private func matchesContent(_ lhs: ClipboardItem, _ rhs: ClipboardItem) -> Bool {
+        lhs.textContent == rhs.textContent &&
+        lhs.contentType == rhs.contentType &&
+        lhs.metadata.imageFileName == rhs.metadata.imageFileName
+    }
+
     public func delete(id: ClipboardItem.ID) async {
         var current = loaded()
-        if let idx = current.firstIndex(where: { $0.id == id }) {
-            let removed = current.remove(at: idx)
-            // If it had an image file, clean it up
+        if let index = current.firstIndex(where: { $0.id == id }) {
+            let removed = current.remove(at: index)
             if let imageFileName = removed.metadata.imageFileName {
                 deleteImageFile(named: imageFileName)
             }
@@ -140,8 +117,8 @@ public actor JSONClipboardStore: ClipboardStoring {
 
     public func togglePin(id: ClipboardItem.ID) async {
         var current = loaded()
-        if let idx = current.firstIndex(where: { $0.id == id }) {
-            current[idx].isPinned.toggle()
+        if let index = current.firstIndex(where: { $0.id == id }) {
+            current[index].isPinned.toggle()
             itemsCache = current
             persist(current)
         }
@@ -188,7 +165,6 @@ public actor JSONClipboardStore: ClipboardStoring {
                 result.append(item)
                 unpinnedCount += 1
             } else {
-                // Pruned item: clean up image file if present
                 if let imageFileName = item.metadata.imageFileName {
                     deleteImageFile(named: imageFileName)
                 }

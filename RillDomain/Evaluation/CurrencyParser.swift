@@ -52,9 +52,8 @@ public enum CurrencyParser {
     private static func amountAndCode(from text: String) -> (Decimal, String)? {
         guard !text.isEmpty else { return nil }
 
-        // Leading symbol: "$20", "Rp 20000", "€50". Longest symbol first so
-        // "US$" wins over "$" and "R$" before "$". Case-insensitive for the
-        // alphabetic symbols ("rp 20000"), exact for glyphs.
+        // Sort longest symbol first so "US$"/"R$" win over "$"; fold case for
+        // alphabetic symbols ("rp 20000") while keeping glyph matching exact.
         let folded = text.lowercased()
         for symbol in symbols.sorted(by: { $0.key.count > $1.key.count }) {
             guard folded.hasPrefix(symbol.key.lowercased()) else { continue }

@@ -7,8 +7,7 @@ extension UpdateManager {
         let appPath = Bundle.main.bundlePath
         let script = UpdateInstallerSupport.installScript(
             appPath: appPath,
-            dmgPath: dmgPath,
-            expectedVersion: targetVersion
+            dmgPath: dmgPath
         )
 
         var installSucceeded = await Self.runShellScript(script)

@@ -55,14 +55,12 @@ public enum UpdateInstallerSupport {
     public static func installScript(
         appPath: String,
         dmgPath: String,
-        expectedVersion: String,
         expectedBundleID: String = "com.ssajudn.Rill"
     ) -> String {
         """
         #!/bin/sh
         APP=\(shellSingleQuoted(appPath))
         DMG=\(shellSingleQuoted(dmgPath))
-        EXPECTED_VERSION=\(shellSingleQuoted(expectedVersion))
         EXPECTED_BUNDLE_ID=\(shellSingleQuoted(expectedBundleID))
 
         MNT="$(/usr/bin/mktemp -d /tmp/rill-update-mnt.XXXXXX)" || exit 10

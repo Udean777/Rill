@@ -251,7 +251,6 @@ public struct SearchUseCase: Sendable {
         let raw = query.raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !raw.isEmpty else { return [] }
 
-        // Calculator fallback
         if calculatorEnabled, let value = ExpressionEvaluator.evaluate(raw) {
             let formatted = ExpressionEvaluator.formatResult(value)
             fallbacks.append(
@@ -268,7 +267,6 @@ public struct SearchUseCase: Sendable {
             )
         }
 
-        // Web search fallback
         if webSearchEnabled,
            let encoded = raw.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
            let url = URL(string: "https://www.google.com/search?q=\(encoded)") {

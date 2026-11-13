@@ -1,4 +1,3 @@
-import AppKit
 import RillDomain
 import SwiftUI
 
@@ -29,7 +28,6 @@ struct PaletteFooterView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Left: Contextual action hints
             if let selectedResult {
                 HStack(spacing: 10) {
                     actionHint("↵", label: actionTitle(for: selectedResult))
@@ -40,7 +38,6 @@ struct PaletteFooterView: View {
 
             Spacer(minLength: 16)
 
-            // Right: Global shortcuts & quick utility tools
             if showsHints {
                 HStack(spacing: 10) {
                     HStack(spacing: 4) {
@@ -73,7 +70,6 @@ struct PaletteFooterView: View {
                         .fill(Color.primary.opacity(0.12))
                         .frame(width: 0.5, height: 14)
 
-                    // Quick tool button: Clipboard History
                     Button {
                         onOpenClipboard()
                     } label: {
@@ -95,7 +91,6 @@ struct PaletteFooterView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Open Clipboard History (Option-Command-V)")
 
-                    // Quick tool button: Settings
                     Button {
                         onOpenSettings()
                     } label: {

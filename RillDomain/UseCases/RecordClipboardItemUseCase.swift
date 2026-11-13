@@ -15,7 +15,6 @@ public struct RecordClipboardItemUseCase: Sendable {
     }
 
     public func classify(_ raw: RawClipboardEntry) -> ClipboardItem? {
-        // If image
         if let imageFileName = raw.imageFileName, let dimensions = raw.imageDimensions {
             return ClipboardItem(
                 id: ClipboardItem.ID(),
@@ -32,7 +31,6 @@ public struct RecordClipboardItemUseCase: Sendable {
             )
         }
 
-        // If files
         if let fileURLs = raw.fileURLs, !fileURLs.isEmpty {
             let fileCount = fileURLs.count
             let summary = fileCount == 1
@@ -51,7 +49,6 @@ public struct RecordClipboardItemUseCase: Sendable {
             )
         }
 
-        // Textual content
         guard let text = raw.textContent?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
             return nil
         }
@@ -60,7 +57,6 @@ public struct RecordClipboardItemUseCase: Sendable {
         let wordCount = text.split(whereSeparator: \.isWhitespace).count
         let charCount = text.count
 
-        // 1. Color check
         if let colorData = Self.detectColor(text) {
             return ClipboardItem(
                 id: ClipboardItem.ID(),
@@ -80,7 +76,6 @@ public struct RecordClipboardItemUseCase: Sendable {
             )
         }
 
-        // 2. Link / URL check
         if let url = URL(string: text),
            let scheme = url.scheme?.lowercased(),
            ["http", "https"].contains(scheme),
@@ -100,7 +95,6 @@ public struct RecordClipboardItemUseCase: Sendable {
             )
         }
 
-        // 3. Code detection
         if let detectedLanguage = Self.detectCodeLanguage(text) {
             return ClipboardItem(
                 id: ClipboardItem.ID(),
@@ -118,7 +112,6 @@ public struct RecordClipboardItemUseCase: Sendable {
             )
         }
 
-        // 4. Default plain / rich text
         return ClipboardItem(
             id: ClipboardItem.ID(),
             contentType: .text,
@@ -134,10 +127,8 @@ public struct RecordClipboardItemUseCase: Sendable {
         )
     }
 
-    // Color detection
     public static func detectColor(_ input: String) -> (hex: String, rgb: String, hsl: String)? {
         let str = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        // HEX (#RGB, #RRGGBB, #RRGGBBAA)
         if str.hasPrefix("#") {
             let hexChars = str.dropFirst()
             if [3, 4, 6, 8].contains(hexChars.count),
@@ -204,7 +195,6 @@ public struct RecordClipboardItemUseCase: Sendable {
         return (Int(h.rounded()), Int((s * 100).rounded()), Int((l * 100).rounded()))
     }
 
-    // Code language detection heuristics
     public static func detectCodeLanguage(_ text: String) -> String? {
         if text.hasPrefix("{") && text.hasSuffix("}") && text.contains(":") {
             return "JSON"
@@ -218,7 +208,7 @@ public struct RecordClipboardItemUseCase: Sendable {
         if text.contains("def ") && (text.contains(":\n") || text.contains("import ")) {
             return "Python"
         }
-        if text.contains("const ") || text.contains("let ") && (text.contains("=>") || text.contains("function")) {
+        if (text.contains("const ") || text.contains("let ")) && (text.contains("=>") || text.contains("function")) {
             return "JavaScript"
         }
         if text.contains("<html") || text.contains("</div>") || text.contains("</") {
@@ -252,7 +242,7 @@ public struct RawClipboardEntry: Sendable {
         fileURLs: [String]? = nil,
         byteSize: Int? = nil,
         sourceApp: ClipboardSourceApp? = nil,
-        copiedAt: Date = Date()
+        copiedAt: Date
     ) {
         self.textContent = textContent
         self.richTextContent = richTextContent

@@ -16,9 +16,14 @@ public final class UpdateManager {
     }
     public var isChecking = false
     public var isDownloading = false
-    public var hasUpdate = false
-    public var latestVersion = ""
     public var releaseNotesURL: URL?
+
+    public var availableVersion: String? {
+        if case .available(let version) = state {
+            return version
+        }
+        return nil
+    }
     public var dmgDownloadURL: URL?
     public var downloadProgress: Double?
     public var lastCheckedDate: Date?
@@ -33,19 +38,27 @@ public final class UpdateManager {
     var downloadExpectedBytes: Int64?
 
     private let userDefaults: UserDefaults
+    private let clock: Clock
+    private let session: URLSession
 
     public var currentVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 
-    public init(userDefaults: UserDefaults = .standard) {
+    public init(
+        userDefaults: UserDefaults = .standard,
+        clock: Clock,
+        session: URLSession = .shared
+    ) {
         self.userDefaults = userDefaults
+        self.clock = clock
+        self.session = session
     }
 
     /// Runs a silent background check if at least 24 hours have passed since the last check.
     public func checkIfDue() async {
         let lastCheck = userDefaults.double(forKey: Self.lastCheckKey)
-        if lastCheck > 0, Date().timeIntervalSince1970 - lastCheck < Self.automaticCheckInterval {
+        if lastCheck > 0, clock.now.timeIntervalSince1970 - lastCheck < Self.automaticCheckInterval {
             return
         }
         await checkForUpdates(isUserInitiated: false)
@@ -74,13 +87,13 @@ public final class UpdateManager {
 
         defer {
             isChecking = false
-            let now = Date()
+            let now = clock.now
             lastCheckedDate = now
             userDefaults.set(now.timeIntervalSince1970, forKey: Self.lastCheckKey)
         }
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
                 let message = String(localized: "Unable to reach GitHub Releases.")
@@ -98,8 +111,6 @@ public final class UpdateManager {
             let cleanRemote = release.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
 
             if Version.isNewer(cleanRemote, than: currentVersion) {
-                hasUpdate = true
-                latestVersion = cleanRemote
                 releaseNotesURL = URL(string: release.htmlUrl)
 
                 if let dmgAsset = release.assets.first(where: { $0.name.lowercased().hasSuffix(".dmg") }),
@@ -114,8 +125,6 @@ public final class UpdateManager {
                 state = .available(version: cleanRemote)
                 showUpdateAvailableDialog(version: cleanRemote)
             } else {
-                hasUpdate = false
-                latestVersion = ""
                 releaseNotesURL = nil
                 dmgDownloadURL = nil
                 downloadExpectedBytes = nil

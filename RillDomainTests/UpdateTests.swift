@@ -73,8 +73,7 @@ struct UpdateTests {
     @Test func `installScript targets Rill bundle identifier`() {
         let script = UpdateInstallerSupport.installScript(
             appPath: "/Applications/Rill.app",
-            dmgPath: "/tmp/Rill.dmg",
-            expectedVersion: "1.2.0"
+            dmgPath: "/tmp/Rill.dmg"
         )
         #expect(script.contains("com.ssajudn.Rill"))
         #expect(script.contains("hdiutil attach"))

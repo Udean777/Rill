@@ -32,16 +32,7 @@ public actor JSONUsageStore: UsageStoring {
     }
 
     public static func defaultFileURL() -> URL {
-        let base =
-            FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first
-            ?? FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Library/Application Support", isDirectory: true)
-
-        return base
-            .appendingPathComponent("Rill", isDirectory: true)
-            .appendingPathComponent("usage.json", isDirectory: false)
+        AppSupportDirectory.file("usage.json")
     }
 
     public func snapshot() async -> UsageSnapshot {

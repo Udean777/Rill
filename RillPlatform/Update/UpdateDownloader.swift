@@ -28,6 +28,7 @@ extension UpdateManager {
         }
 
         guard !isDownloading else { return }
+        let targetVersion = availableVersion ?? ""
         isDownloading = true
         downloadProgress = nil
         state = .downloading(progress: nil)
@@ -100,7 +101,6 @@ extension UpdateManager {
                     }
 
                     self.state = .installing
-                    let targetVersion = self.latestVersion
                     Task {
                         await self.performBackgroundInstall(dmgPath: destination.path, targetVersion: targetVersion)
                     }

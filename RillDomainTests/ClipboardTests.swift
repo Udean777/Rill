@@ -9,7 +9,7 @@ struct ClipboardClassificationTests {
     @Test
     func classifiesHexColor() {
         let useCase = RecordClipboardItemUseCase(store: store)
-        let item = useCase.classify(RawClipboardEntry(textContent: "#3B82F6"))
+        let item = useCase.classify(RawClipboardEntry(textContent: "#3B82F6", copiedAt: .distantPast))
 
         #expect(item != nil)
         #expect(item?.contentType == .color)
@@ -21,7 +21,7 @@ struct ClipboardClassificationTests {
     @Test
     func classifiesShortHexColor() {
         let useCase = RecordClipboardItemUseCase(store: store)
-        let item = useCase.classify(RawClipboardEntry(textContent: "#fff"))
+        let item = useCase.classify(RawClipboardEntry(textContent: "#fff", copiedAt: .distantPast))
 
         #expect(item != nil)
         #expect(item?.contentType == .color)
@@ -31,7 +31,7 @@ struct ClipboardClassificationTests {
     @Test
     func classifiesWebURL() {
         let useCase = RecordClipboardItemUseCase(store: store)
-        let item = useCase.classify(RawClipboardEntry(textContent: "https://github.com/apple/swift"))
+        let item = useCase.classify(RawClipboardEntry(textContent: "https://github.com/apple/swift", copiedAt: .distantPast))
 
         #expect(item != nil)
         #expect(item?.contentType == .link)
@@ -42,19 +42,27 @@ struct ClipboardClassificationTests {
     func classifiesCodeSnippets() {
         let useCase = RecordClipboardItemUseCase(store: store)
 
-        let swiftCode = useCase.classify(RawClipboardEntry(textContent: "import SwiftUI\nfunc greet() {}"))
+        let swiftCode = useCase.classify(RawClipboardEntry(textContent: "import SwiftUI\nfunc greet() {}", copiedAt: .distantPast))
         #expect(swiftCode?.contentType == .code)
         #expect(swiftCode?.metadata.codeLanguage == "Swift")
 
-        let jsonCode = useCase.classify(RawClipboardEntry(textContent: "{\"key\": \"value\"}"))
+        let jsonCode = useCase.classify(RawClipboardEntry(textContent: "{\"key\": \"value\"}", copiedAt: .distantPast))
         #expect(jsonCode?.contentType == .code)
         #expect(jsonCode?.metadata.codeLanguage == "JSON")
+
+        let jsArrow = useCase.classify(RawClipboardEntry(textContent: "const add = (a, b) => a + b", copiedAt: .distantPast))
+        #expect(jsArrow?.contentType == .code)
+        #expect(jsArrow?.metadata.codeLanguage == "JavaScript")
+
+        let nonJSConst = useCase.classify(RawClipboardEntry(textContent: "const count = 42", copiedAt: .distantPast))
+        #expect(nonJSConst?.contentType == .text)
+        #expect(nonJSConst?.metadata.codeLanguage == nil)
     }
 
     @Test
     func classifiesPlainText() {
         let useCase = RecordClipboardItemUseCase(store: store)
-        let item = useCase.classify(RawClipboardEntry(textContent: "Just a regular note to remember later."))
+        let item = useCase.classify(RawClipboardEntry(textContent: "Just a regular note to remember later.", copiedAt: .distantPast))
 
         #expect(item != nil)
         #expect(item?.contentType == .text)
@@ -65,12 +73,53 @@ struct ClipboardClassificationTests {
     @Test
     func classifiesFiles() {
         let useCase = RecordClipboardItemUseCase(store: store)
-        let item = useCase.classify(RawClipboardEntry(fileURLs: ["/Users/test/Doc.pdf", "/Users/test/Photo.png"]))
+        let item = useCase.classify(RawClipboardEntry(fileURLs: ["/Users/test/Doc.pdf", "/Users/test/Photo.png"], copiedAt: .distantPast))
 
         #expect(item != nil)
         #expect(item?.contentType == .files)
         #expect(item?.metadata.fileURLs?.count == 2)
         #expect(item?.textContent == "2 files")
+    }
+
+    @Test(arguments: [
+        "/tmp/photo.png",
+        "/tmp/photo.JPG",
+        "/tmp/photo.jpeg",
+        "/tmp/anim.gif",
+        "/tmp/banner.webp",
+        "/tmp/portrait.heic",
+        "/tmp/portrait.heif",
+        "/tmp/vector.svg",
+        "/tmp/modern.avif",
+        "/tmp/next.jxl",
+        "/tmp/scan.tiff",
+        "/tmp/bitmap.bmp",
+        "/tmp/favicon.ico",
+        "/tmp/camera.dng",
+        "/tmp/camera.cr2",
+    ])
+    func `identifies image file paths across extensions`(path: String) {
+        #expect(ClipboardFileKind.isImageFile(atPath: path))
+    }
+
+    @Test(arguments: [
+        "/tmp/report.pdf",
+        "/tmp/archive.zip",
+        "/tmp/notes.txt",
+        "/tmp/App.swift",
+        "/tmp/folder",
+        "",
+    ])
+    func `rejects non-image file paths`(path: String) {
+        #expect(!ClipboardFileKind.isImageFile(atPath: path))
+    }
+
+    @Test
+    func `normalizes leading dot and whitespace in extensions`() {
+        #expect(ClipboardFileKind.isImageExtension(".PNG"))
+        #expect(ClipboardFileKind.isImageExtension(" webp "))
+        #expect(!ClipboardFileKind.isImageExtension(""))
+        #expect(!ClipboardFileKind.isImageExtension("pdf"))
     }
 }
 

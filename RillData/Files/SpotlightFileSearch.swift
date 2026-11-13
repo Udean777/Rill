@@ -56,8 +56,7 @@ public final class SpotlightFileSearch: FileSearching {
             ]
 
             // NotificationCenter closures are @Sendable in Swift 6; hop to MainActor
-            // explicitly so we can safely call @MainActor-isolated methods (see
-            // architecture.md §5 on run-loop-affine APIs).
+            // explicitly to call run-loop-affine NSMetadataQuery methods.
             let finishObserver = NotificationCenter.default.addObserver(
                 forName: .NSMetadataQueryDidFinishGathering,
                 object: metadataQuery,
