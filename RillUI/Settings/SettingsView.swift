@@ -273,6 +273,25 @@ public struct SettingsView: View {
                 }
             }
 
+            settingsCard(title: "Currency") {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Convert currency amounts")
+                            .font(.system(size: 13))
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { viewModel.preferences.currencyConversionEnabled },
+                            set: { viewModel.updateCurrencyConversionEnabled($0) }
+                        ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                    }
+                    Text("Type $20, €50 or 20 USD to convert to your local currency. Rates come from Frankfurter and need a network connection.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             settingsCard(title: "Palette") {
                 HStack {
                     Text("Suggested apps window")
@@ -568,6 +587,31 @@ public struct SettingsView: View {
                 }
             }
 
+            settingsCard(title: "Open Source") {
+                ForEach(Credits.all) { credit in
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(credit.name)
+                                .font(.system(size: 13))
+                            Text(credit.detail)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer(minLength: 12)
+
+                        if let websiteURL = URL(string: credit.website) {
+                            Link("Website", destination: websiteURL)
+                                .font(.system(size: 12))
+                        }
+                        if let githubURL = URL(string: credit.github) {
+                            Link("GitHub", destination: githubURL)
+                                .font(.system(size: 12))
+                        }
+                    }
+                }
+            }
+
             settingsCard(title: "Permissions") {
                 HStack {
                     Text("Accessibility")
@@ -656,4 +700,43 @@ public struct SettingsView: View {
             NSWorkspace.shared.open(url)
         }
     }
+}
+
+/// Third-party and framework credits shown in Settings → About.
+private struct Credit: Identifiable {
+    let name: String
+    let detail: String
+    let website: String
+    let github: String
+
+    var id: String { name }
+}
+
+private enum Credits {
+    static let all: [Credit] = [
+        Credit(
+            name: "Swift, SwiftUI, Foundation",
+            detail: String(localized: "Apple frameworks Rill is built on."),
+            website: "https://developer.apple.com/swift",
+            github: "https://github.com/swiftlang/swift"
+        ),
+        Credit(
+            name: "Swift Testing",
+            detail: String(localized: "Test framework for the test suite."),
+            website: "https://swift.org/swift-testing",
+            github: "https://github.com/swiftlang/swift-testing"
+        ),
+        Credit(
+            name: "Frankfurter",
+            detail: String(localized: "Exchange rates for currency conversion."),
+            website: "https://frankfurter.dev",
+            github: "https://github.com/lineofflight/frankfurter"
+        ),
+        Credit(
+            name: "Raycast",
+            detail: String(localized: "Prior art for the palette interaction model."),
+            website: "https://raycast.com",
+            github: "https://github.com/raycast"
+        )
+    ]
 }

@@ -21,6 +21,7 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
         static let clipboardHistoryLimit = "preferences.clipboard.historyLimit"
         static let clipboardDirectPaste = "preferences.clipboard.directPaste"
         static let clipboardSaveImages = "preferences.clipboard.saveImages"
+        static let currencyConversionEnabled = "preferences.currency.enabled"
     }
 
     public init(userDefaults: UserDefaults = .standard) {
@@ -71,7 +72,9 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
             clipboardDirectPaste: userDefaults.object(forKey: Key.clipboardDirectPaste) as? Bool
                 ?? Preferences.default.clipboardDirectPaste,
             clipboardSaveImages: userDefaults.object(forKey: Key.clipboardSaveImages) as? Bool
-                ?? Preferences.default.clipboardSaveImages
+                ?? Preferences.default.clipboardSaveImages,
+            currencyConversionEnabled: userDefaults.object(forKey: Key.currencyConversionEnabled) as? Bool
+                ?? Preferences.default.currencyConversionEnabled
         ).sanitized()
     }
 
@@ -90,6 +93,7 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
         userDefaults.set(preferences.clipboardHistoryLimit, forKey: Key.clipboardHistoryLimit)
         userDefaults.set(preferences.clipboardDirectPaste, forKey: Key.clipboardDirectPaste)
         userDefaults.set(preferences.clipboardSaveImages, forKey: Key.clipboardSaveImages)
+        userDefaults.set(preferences.currencyConversionEnabled, forKey: Key.currencyConversionEnabled)
         // Monotonic: a stale settings snapshot must never resurrect the welcome
         // window after onboarding has been completed.
         let completed =

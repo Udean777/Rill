@@ -33,7 +33,7 @@ graph TD
 | Target         | Responsibility                                                                                      | May import                                                                                              |
 | -------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `RillDomain`   | Entities, use cases, ports, ranking, errors                                                         | Foundation only (`URL`, `Date`, `UUID`, `String(localized:)`). No AppKit, SwiftUI, Observation, SQLite. |
-| `RillData`     | Port implementations: command registry, app catalogue, file search, frecency store, preferences     | Foundation, `NSMetadataQuery` (Foundation), `NSWorkspace`, SQLite/GRDB                                  |
+| `RillData`     | Port implementations: command registry, app catalogue, file search, frecency store, preferences, exchange-rate fetch | Foundation, `NSMetadataQuery` (Foundation), `NSWorkspace`, `URLSession`, SQLite/GRDB                                  |
 | `RillUI`       | SwiftUI views + `@Observable` view models (presentation)                                            | SwiftUI, Observation, `RillDomain`                                                                      |
 | `RillPlatform` | AppKit shell: `NSPanel`, global hotkey, activation, permissions, pasteboard, `NSHostingView` bridge | AppKit, Carbon, SwiftUI (for hosting), Domain                                                           |
 | `Rill`         | `@main`, composition root, app delegate, wiring                                                     | everything                                                                                              |
@@ -103,7 +103,7 @@ public struct RankedSection: Identifiable, Sendable {
 }
 
 public enum Section: String, Sendable, CaseIterable {
-    case favorites, suggestions, commands, applications, files, fallback
+    case currency, favorites, suggestions, commands, applications, files, fallback
 }
 ```
 
@@ -135,6 +135,26 @@ public protocol ActionPerforming: Sendable {
 public protocol HotkeyRegistering: Sendable {
     func register(_ hotkey: Hotkey) async throws -> HotkeyToken
     func unregister(_ token: HotkeyToken) async
+}
+
+/// Supplies the user's local currency and region. Read from the system locale
+/// through an adapter; Domain never calls `Locale.current` directly.
+public protocol LocaleProviding: Sendable {
+    /// The user's currency code (e.g. `"IDR"`, `"USD"`), or `nil` when unknown.
+    var currencyCode: String? { get }
+    /// The user's region code (e.g. `"ID"`, `"US"`), or `nil` when unknown.
+    var regionCode: String? { get }
+    /// The locale used to format converted amounts.
+    var locale: Locale { get }
+}
+
+/// Fetches a single exchange rate for a currency pair. The first port in the
+/// app that performs outbound network I/O; backed by Frankfurter (no API key).
+/// Implementations cache rates in memory and degrade gracefully when offline.
+public protocol CurrencyRateFetching: Sendable {
+    /// The mid-market rate of `base` in units of `quote` (1 base = rate quote).
+    /// - Throws: framework errors from the network layer (untyped set).
+    func rate(base: String, quote: String) async throws -> Double
 }
 ```
 
@@ -182,6 +202,21 @@ public func callAsFunction(_ query: SearchQuery, limit: Int = 40) async -> [Rank
 ```
 
 Note `try?`: a failing file search degrades the palette; it must never empty it. Log the error, keep the other sections.
+
+### 3.2 Currency converter (amount → local currency)
+
+A typed query that parses as a currency amount produces one additional candidate,
+routed to the `.currency` section, which renders first — above favorites, apps and
+files — so a conversion is never buried under file results (design.md §4.4). The flow:
+
+1. `CurrencyParser.parse(raw)` (pure, Domain) → `CurrencyAmount { amount: Decimal; code: String }`, or `nil`.
+2. `LocaleProviding.currencyCode` (port) → the user's local currency (e.g. `"IDR"`).
+3. `CurrencyRateFetching.rate(base: code, quote: localCode)` (port, network) → mid-market `Double`.
+4. `amount * rate` → converted `Decimal`, formatted by the UI with `NumberFormatter` currency style.
+
+It runs as an `async let` alongside the other providers in `SearchUseCase`, so a slow
+or missing rate cannot block apps/commands/files. Failure degrades silently: no
+conversion row, other sections unaffected.
 
 ## 4. Concurrency model
 
@@ -470,6 +505,9 @@ A launcher that activates changes the menu bar, the Dock highlight, and ⌘Tab o
 **ADR-008 — Suggested apps come from activations Rill tracks itself, not from system recents.**
 `LSSharedFileList`'s recent-applications list is deprecated since 10.11 and limited by the Dock's own list; `knowledge-c.db` is private and undocumented, so reading it would be fragile and a notarization risk. `AppUsageTracker` (RillPlatform) observes `NSWorkspace.didActivateApplicationNotification` and records the activation through `UsageStoring`, the same port executions already use. Cost: suggestions are empty on a fresh install until apps are used while Rill runs; the palette still shows applications and commands, so it is never empty. Revisit if users ask for instant suggestions on day one.
 
+**ADR-009 — Currency converter uses Frankfurter; this is the app's first network call.**
+Exchange rates come from `api.frankfurter.dev/v2/rate/{base}/{quote}` — free, no API key, 219 currencies, ECB reference rates, mid-market, no quotas, and caching explicitly encouraged. It is accessed through the `CurrencyRateFetching` port (Domain) implemented in `RillData` with `URLSession`. Rates are cached in memory with a TTL; nothing is persisted to disk. The local currency is read via `LocaleProviding` (system locale), never transmitted. This relaxes the "no network in v1" constraint (design.md §9) for this feature only; the converter runs concurrently with other providers and degrades silently when offline, so the ≤ 50 ms keystroke budget for non-conversion results is preserved. Revisit if users need provider-specific official rates or a manual default currency.
+
 ## 11. Known shortcuts
 
 Each is a deliberate deferral with an upgrade path, and each appears as a `shortcut:` comment at the code site.
@@ -485,6 +523,11 @@ Each is a deliberate deferral with an upgrade path, and each appears as a `short
 | File existence checked per pin on every search            | Pin counts reach the hundreds, or profile shows measurable cost                                  |
 | English-only strings                                      | Before any non-English user feedback — though all strings already go through `String(localized:)` |
 | No crash reporting                                        | Public distribution                                                                               |
+| Rates fetched live per pair, cached in memory only        | Conversion latency on cold start → persist a daily rate snapshot to disk behind the same port.   |
+| Frankfurter blended rates, no provider filter             | A user needs official reference rates → add `providers=` filter option in Settings.              |
+| Local currency from `Locale.current`, no manual override  | Users travel or want a fixed base → add a "default currency" preference.                         |
+| `$` symbol defaults to USD / local dollar variant         | Symbol ambiguity causes wrong conversions → accept explicit currency code (`20 CAD`).            |
+| No conversion history                                     | Users ask to reuse recent conversions → add to the usage/frecency model.                         |
 
 ## 12. Definition of done (per feature)
 

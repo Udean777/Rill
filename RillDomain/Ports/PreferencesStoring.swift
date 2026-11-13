@@ -25,6 +25,8 @@ public struct Preferences: Sendable, Equatable {
     public var clipboardDirectPaste: Bool
     /// Whether copied images are stored in clipboard history.
     public var clipboardSaveImages: Bool
+    /// Whether typing a currency amount converts it to the user's local currency.
+    public var currencyConversionEnabled: Bool
 
     public init(
         hotkey: Hotkey = .default,
@@ -39,7 +41,8 @@ public struct Preferences: Sendable, Equatable {
         clipboardHotkey: Hotkey = Hotkey(keyCode: 9, modifiers: [.option, .command]),
         clipboardHistoryLimit: Int = 500,
         clipboardDirectPaste: Bool = true,
-        clipboardSaveImages: Bool = true
+        clipboardSaveImages: Bool = true,
+        currencyConversionEnabled: Bool = true
     ) {
         self.hotkey = hotkey
         self.fileSearchEnabled = fileSearchEnabled
@@ -54,6 +57,7 @@ public struct Preferences: Sendable, Equatable {
         self.clipboardHistoryLimit = clipboardHistoryLimit
         self.clipboardDirectPaste = clipboardDirectPaste
         self.clipboardSaveImages = clipboardSaveImages
+        self.currencyConversionEnabled = currencyConversionEnabled
     }
 
     public static let `default` = Preferences()

@@ -28,6 +28,7 @@ extension RillDomain.Section {
     /// Localised display name. User-facing text stays out of Domain.
     var localizedTitle: String {
         switch self {
+        case .currency: String(localized: "Currency")
         case .favorites: String(localized: "Favorites")
         case .suggestions: String(localized: "Suggestions")
         case .commands: String(localized: "Commands")

@@ -4,5 +4,6 @@ public enum Kind: String, Sendable, Hashable {
     case application
     case file
     case calculation
+    case currency
     case web
 }

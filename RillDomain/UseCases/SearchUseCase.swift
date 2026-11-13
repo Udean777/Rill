@@ -9,6 +9,8 @@ public struct SearchUseCase: Sendable {
     private let usage: UsageStoring
     private let clock: Clock
     private let preferences: (@Sendable () async -> Preferences)?
+    private let currencyRates: CurrencyRateFetching?
+    private let locale: LocaleProviding?
 
     public init(
         commands: CommandProviding,
@@ -16,7 +18,9 @@ public struct SearchUseCase: Sendable {
         files: FileSearching? = nil,
         usage: UsageStoring,
         clock: Clock,
-        preferences: (@Sendable () async -> Preferences)? = nil
+        preferences: (@Sendable () async -> Preferences)? = nil,
+        currencyRates: CurrencyRateFetching? = nil,
+        locale: LocaleProviding? = nil
     ) {
         self.commands = commands
         self.applications = applications
@@ -24,6 +28,8 @@ public struct SearchUseCase: Sendable {
         self.usage = usage
         self.clock = clock
         self.preferences = preferences
+        self.currencyRates = currencyRates
+        self.locale = locale
     }
 
     public func callAsFunction(_ query: SearchQuery) async -> [RankedSection] {
@@ -70,8 +76,14 @@ public struct SearchUseCase: Sendable {
                 guard filesAllowed, let files else { return [] }
                 return await files.search(query: query)
             }()
+            async let conversion = currencyFallback(
+                for: query,
+                enabled: currentPreferences.currencyConversionEnabled
+            )
 
-            let (allApplications, fileResults) = await (fetchedApps, fetchedFiles)
+            let (allApplications, fileResults, currencyResult) = await (
+                fetchedApps, fetchedFiles, conversion
+            )
 
             // Pinned results only join a typed query when they match it.
             let favorites = favoriteResults(
@@ -86,10 +98,15 @@ public struct SearchUseCase: Sendable {
                     && MatchScore.score(title: result.title, query: query) > 0
             }
 
+            var fallbacks = fallbackResults(for: query)
+            if let currencyResult {
+                fallbacks.append(currencyResult)
+            }
+
             candidates =
                 favorites + matchingStatic
                 + fileResults.filter { !favoriteIDs.contains($0.id) }
-                + fallbackResults(for: query)
+                + fallbacks
         }
 
         return Ranking.rank(candidates, query: query, usage: snapshot, now: clock.now)
@@ -164,6 +181,47 @@ public struct SearchUseCase: Sendable {
     }
 
     private static let suggestionLimit = 5
+
+    /// Converts a currency amount in the query to the user's local currency.
+    ///
+    /// Runs concurrently with the other providers. A missing rate or a
+    /// non-currency query yields `nil`; the palette degrades rather than blocks.
+    private func currencyFallback(
+        for query: SearchQuery,
+        enabled: Bool
+    ) async -> SearchResult? {
+        guard enabled, let currencyRates, let locale else { return nil }
+        let raw = query.raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let parsed = CurrencyParser.parse(raw) else { return nil }
+
+        let target = (parsed.targetCode ?? locale.currencyCode)?.uppercased()
+        guard let target, !target.isEmpty else { return nil }
+
+        let source = parsed.code
+        let rate: Double
+        if source == target {
+            rate = 1
+        } else {
+            // Offline is expected, not exceptional: skip the row, keep the palette.
+            guard let fetched = try? await currencyRates.rate(base: source, quote: target) else {
+                return nil
+            }
+            rate = fetched
+        }
+
+        let converted = parsed.amount * Decimal(rate)
+        let formatted = CurrencyFormatter.string(converted, code: target, locale: locale.locale)
+        return SearchResult(
+            id: .init(source: "currency", raw: raw),
+            title: formatted,
+            subtitle: "\(parsed.amount) \(source) → \(target)",
+            icon: .systemSymbol("dollarsign.circle"),
+            section: .currency,
+            kind: .currency,
+            primaryAction: .copyToPasteboard(formatted),
+            baseScore: 1.0
+        )
+    }
 
     private func fallbackResults(for query: SearchQuery) -> [SearchResult] {
         var fallbacks: [SearchResult] = []

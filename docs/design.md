@@ -81,6 +81,7 @@ Everything else in this document exists to make that loop feel instant and predi
 | Click outside / app loses key status   | Hide.                                                                                                                              |
 | Hotkey pressed while palette open      | Hide (toggle semantics, not re-focus).                                                                                             |
 | Palette open, another app steals focus | Hide; selection and query are preserved for the next show _only if_ the palette was hidden by focus loss, not by Esc or execution. |
+| `$20`, `€50`, `20 USD`, `100 IDR`      | Converted to the user's local currency (region from system locale) and shown in a leading Currency section; Enter copies the converted amount. |
 
 Query is preserved across hide-by-focus-loss. Executing a command clears the query. This is the behaviour users have muscle memory for.
 
@@ -110,12 +111,13 @@ struct SearchResult: Identifiable, Sendable, Hashable {
 
 Fixed order, always rendered in this order even when empty (empty sections are dropped, order is not re-sorted):
 
-1. `favorites` — user-pinned results.
-2. `suggestions` — apps used inside the configured window (default 7 days), most used first, capped at 5 (see §5.2).
-3. `applications` — installed apps, shown in pages of the configured size (default 5).
-4. `commands` — built-in and app commands matching the query; a fixed chip row in the root layout.
-5. `files` — Spotlight metadata matches.
-6. `fallback` — "Search the web for …", "Open …", "Calculate …".
+1. `currency` — a live conversion of the typed amount, when the query parses as currency.
+2. `favorites` — user-pinned results.
+3. `suggestions` — apps used inside the configured window (default 7 days), most used first, capped at 5 (see §5.2).
+4. `applications` — installed apps, shown in pages of the configured size (default 5).
+5. `commands` — built-in and app commands matching the query; a fixed chip row in the root layout.
+6. `files` — Spotlight metadata matches.
+7. `fallback` — "Search the web for …", "Open …", "Calculate …".
 
 Suggested apps are excluded from `applications` so a row never appears twice.
 
@@ -157,6 +159,8 @@ Measured on an M-series Mac, app warm, 4 000 apps+commands indexed:
 | Resident memory                   | ≤ 120 MB                                          |
 
 These are release-build gates, checked in `PerformanceTests` and by hand with Instruments. A regression on the first two is a bug, not a nice-to-have.
+
+Currency-conversion rows render first when present, but are latency-tier rather than instant-tier: they run concurrently with apps/commands/files and may appear after those results (or not at all on a cold, offline first keystroke). The ≤ 50 ms keystroke budget applies to non-conversion results only; conversion latency is unbounded by network and degrades silently.
 
 ## 5. Interaction design
 
@@ -325,6 +329,6 @@ Clean Architecture, five Xcode targets, dependencies point inward: `RillDomain` 
 | File search over the whole disk is slow and noisy   | Debounce 60 ms, cap results per section (files: 20), scope to home by default, cancel in-flight queries    |
 | Hotkey conflicts with other launchers / macOS       | Detect ⌘Space conflict, offer alternatives, never silently fail — surface "hotkey unavailable" in Settings |
 | Accessibility permission UX is hostile              | Feature-gate; explain in-context; deep-link to the exact Settings pane; never block the core loop          |
-| Non-sandboxed app looks scary to users              | Hardened runtime, notarised, no network in v1, document exactly what is read                               |
+| Non-sandboxed app looks scary to users              | Hardened runtime, notarised, document exactly what is read. Network is limited to the currency converter (Frankfurter, anonymous, currency codes only — no amount or PII transmitted); everything else stays offline. |
 | Ranking feels random                                | Pure function + golden-file tests + a debug overlay showing each result's score components                 |
 | SwiftUI `WindowGroup` fights a panel-based launcher | Do not use scenes for the palette; AppKit owns the window (`architecture.md` §5.3)                         |

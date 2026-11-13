@@ -53,6 +53,8 @@ final class AppEnvironment {
         let preferencesStore = UserDefaultsPreferencesStore()
         let fileSearch = SpotlightFileSearch()
         let launchAtLogin = LaunchAtLogin()
+        let currencyRateFetcher = FrankfurterRateFetcher(clock: clock)
+        let localeProvider = SystemLocaleProvider()
 
         let searchUseCase = SearchUseCase(
             commands: CommandRegistry(),
@@ -62,7 +64,9 @@ final class AppEnvironment {
             clock: clock,
             preferences: {
                 await preferencesStore.load()
-            }
+            },
+            currencyRates: currencyRateFetcher,
+            locale: localeProvider
         )
         let executeUseCase = ExecuteResultUseCase(
             performer: SystemActionPerformer(),

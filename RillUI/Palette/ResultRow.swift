@@ -17,10 +17,14 @@ struct ResultRow: View {
         HStack(spacing: 10) {
             icon
                 .frame(width: 18, height: 18)
+                .foregroundStyle(isConversion ? Color.accentColor : Color.primary)
 
             HStack(spacing: 8) {
                 Text(result.title)
-                    .font(.system(size: 14, weight: isSelected ? .medium : .regular))
+                    .font(.system(
+                        size: isConversion ? 15 : 14,
+                        weight: isConversion ? .semibold : (isSelected ? .medium : .regular)
+                    ))
                     .lineLimit(1)
 
                 if let subtitle = result.subtitle {
@@ -54,7 +58,8 @@ struct ResultRow: View {
                 .fill(
                     isSelected
                         ? Color.accentColor.opacity(0.14)
-                        : (isHovered ? Color.primary.opacity(0.06) : Color.clear)
+                        : (isHovered ? Color.primary.opacity(0.06)
+                            : (isConversion ? Color.accentColor.opacity(0.08) : Color.clear))
                 )
         }
         .overlay {
@@ -74,6 +79,12 @@ struct ResultRow: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    /// Currency rows get a heavier weight and accent tint so a live conversion
+    /// is not lost among file results.
+    private var isConversion: Bool {
+        result.kind == .currency
     }
 
     @ViewBuilder

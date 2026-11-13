@@ -146,6 +146,12 @@ public final class SettingsViewModel {
         save()
     }
 
+    public func updateCurrencyConversionEnabled(_ enabled: Bool) {
+        guard preferences.currencyConversionEnabled != enabled else { return }
+        preferences.currencyConversionEnabled = enabled
+        save()
+    }
+
     public func updateClipboardHotkey(_ newHotkey: Hotkey) async {
         guard newHotkey != preferences.clipboardHotkey else { return }
         let previousHotkey = preferences.clipboardHotkey
