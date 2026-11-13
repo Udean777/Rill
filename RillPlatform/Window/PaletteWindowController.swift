@@ -116,10 +116,16 @@ public final class PaletteWindowController {
         animate(alpha: 1, duration: Self.showDuration)
     }
 
-    public func hide() {
+    public func hide(animated: Bool = true) {
         guard isShown else { return }
         isShown = false
         viewModel.isVisible = false
+
+        guard animated else {
+            panel.alphaValue = 0
+            panel.orderOut(nil)
+            return
+        }
 
         animate(alpha: 0, duration: Self.hideDuration, orderingOut: true)
     }
@@ -202,8 +208,8 @@ public final class PaletteWindowController {
 
         if event.modifierFlags.contains(.command), event.keyCode == 51 { // ⌘⌫
             if viewModel.mode == .clipboardHistory {
-                if let cb = viewModel.clipboardViewModel, !cb.query.isEmpty {
-                    cb.updateQuery("")
+                if let clipboard = viewModel.clipboardViewModel, !clipboard.query.isEmpty {
+                    clipboard.updateQuery("")
                     return true
                 } else {
                     viewModel.deleteSelected()

@@ -2,19 +2,14 @@ import AppKit
 import RillUI
 import SwiftUI
 
-/// Window controller managing the Settings window lifecycle and activation policy (see design.md §5.3, §5.5).
+/// Window controller managing the Settings window lifecycle (see design.md §5.5).
 @MainActor
 public final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let viewModel: SettingsViewModel
-    private let activationPolicyController: ActivationPolicyController
     private var window: NSWindow?
 
-    public init(
-        viewModel: SettingsViewModel,
-        activationPolicyController: ActivationPolicyController = .shared
-    ) {
+    public init(viewModel: SettingsViewModel) {
         self.viewModel = viewModel
-        self.activationPolicyController = activationPolicyController
         super.init()
     }
 
@@ -28,28 +23,62 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate {
         let settingsView = SettingsView(viewModel: viewModel)
         let hostingView = NSHostingView(rootView: settingsView)
 
-        let window = NSWindow(
+        let window = AuxiliaryWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 420),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
-        window.title = "Rill Settings"
+        window.title = String(localized: "Rill Settings")
         window.contentView = hostingView
-        window.center()
+        // Stay on the space the user is actually looking at. Without this, a
+        // fullscreen app makes macOS yank the user back to the desktop space
+        // where the window was last placed.
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        window.centerOnActiveScreen()
         window.delegate = self
         window.isReleasedWhenClosed = false
 
         self.window = window
 
-        // Borrow .regular activation policy so Settings has menus and appears normally (design.md §5.3)
-        activationPolicyController.acquireRegular()
+        // Stay `.accessory` rather than borrowing `.regular`: activating a
+        // `.regular` app from another app's fullscreen space forces macOS to
+        // switch Spaces to the desktop whenever the user clicks Settings.
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
     }
 
     public func windowWillClose(_ notification: Notification) {
-        activationPolicyController.releaseRegular()
         window = nil
+    }
+}
+
+/// Supports `⌘W` to close auxiliary windows while `.accessory` (no app menu bar),
+/// without enabling `⌘Q` to quit the background launcher.
+final class AuxiliaryWindow: NSWindow {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if super.performKeyEquivalent(with: event) {
+            return true
+        }
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if modifiers == .command, event.charactersIgnoringModifiers?.lowercased() == "w" {
+            performClose(nil)
+            return true
+        }
+        return false
+    }
+
+    /// Centers on the display the pointer is on, so a fullscreen app on another
+    /// display opens the window where the user is, not on the main display.
+    func centerOnActiveScreen() {
+        guard let screen = PanelPositioner.screenUnderPointer() ?? screen else {
+            center()
+            return
+        }
+        let visible = screen.visibleFrame
+        setFrameOrigin(NSPoint(
+            x: visible.midX - frame.width / 2,
+            y: visible.midY - frame.height / 2
+        ))
     }
 }

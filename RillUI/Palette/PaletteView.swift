@@ -54,9 +54,8 @@ public struct PaletteView: View {
             reduceMotion ? nil : .spring(response: 0.18, dampingFraction: 0.85),
             value: viewModel.isVisible
         )
-        .onAppear { isSearchFocused = viewModel.isVisible }
-        .onChange(of: viewModel.isVisible) { _, isVisible in
-            isSearchFocused = isVisible
+        .task(id: viewModel.isVisible) {
+            isSearchFocused = viewModel.isVisible
         }
     }
 

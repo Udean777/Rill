@@ -218,6 +218,40 @@ struct SearchUseCaseTests {
         #expect(!sections.contains(where: { $0.section == .files }))
     }
 
+    @Test func `hiding the files section suppresses file results`() async {
+        let command = SearchResult.fixture(title: "Save File", section: .commands)
+        let file = SearchResult.fixture(title: "Safety.pdf", section: .files, kind: .file)
+
+        let useCase = makeUseCase(
+            commands: [command],
+            applications: [],
+            files: [file],
+            preferences: { Preferences(hiddenSections: [.files]) }
+        )
+
+        let sections = await useCase(SearchQuery(raw: "saf"))
+
+        #expect(!sections.contains(where: { $0.section == .files }))
+        #expect(sections.map(\.section) == [.commands, .fallback])
+    }
+
+    @Test func `hiding the applications section keeps it out of the root layout`() async {
+        let app = SearchResult.fixture(
+            title: "Safari", section: .applications, kind: .application, source: "application"
+        )
+        let command = SearchResult.fixture(title: "Open Settings", section: .commands)
+
+        let useCase = makeUseCase(
+            commands: [command],
+            applications: [app],
+            preferences: { Preferences(hiddenSections: [.applications]) }
+        )
+
+        let sections = await useCase(SearchQuery(raw: ""))
+
+        #expect(sections.map(\.section) == [.commands])
+    }
+
     @Test func `a longer suggestion window includes older apps`() async {
         let old = SearchResult.fixture(
             title: "Old", section: .applications, kind: .application, source: "application"
@@ -320,6 +354,54 @@ struct SearchUseCaseTests {
         #expect(fallbackResults[1].kind == .web)
     }
 
+    @Test func `hiding every section leaves an empty layout`() async {
+        let command = SearchResult.fixture(title: "Open Settings", section: .commands)
+
+        let useCase = makeUseCase(
+            commands: [command],
+            applications: [],
+            preferences: { Preferences(hiddenSections: Set(Section.allCases)) }
+        )
+
+        let sections = await useCase(SearchQuery(raw: ""))
+
+        #expect(sections.isEmpty)
+    }
+
+    @Test func `disabling both files and folders skips file search`() async {
+        let useCase = makeUseCase(
+            commands: [],
+            applications: [],
+            files: [.fixture(title: "Report.pdf", section: .files, kind: .file)],
+            preferences: {
+                Preferences(fileSearchIncludeFiles: false, fileSearchIncludeFolders: false)
+            }
+        )
+
+        let sections = await useCase(SearchQuery(raw: "report"))
+        #expect(!sections.contains { $0.section == .files })
+    }
+
+    @Test func `calculator and web search can be disabled independently`() async {
+        let calcOnly = makeUseCase(
+            commands: [],
+            applications: [],
+            preferences: { Preferences(calculatorEnabled: true, webSearchEnabled: false) }
+        )
+        let calcSections = await calcOnly(SearchQuery(raw: "2+2"))
+        let calcKinds = calcSections.flatMap(\.results).map(\.kind)
+        #expect(calcKinds == [.calculation])
+
+        let webOnly = makeUseCase(
+            commands: [],
+            applications: [],
+            preferences: { Preferences(calculatorEnabled: false, webSearchEnabled: true) }
+        )
+        let webSections = await webOnly(SearchQuery(raw: "2+2"))
+        let webKinds = webSections.flatMap(\.results).map(\.kind)
+        #expect(webKinds == [.web])
+    }
+
     private func makeUseCase(
         commands: [SearchResult],
         applications: [SearchResult],
@@ -354,7 +436,7 @@ private struct StubApplicationCatalog: ApplicationCataloguing {
 private struct StubFileSearch: FileSearching {
     let files: [SearchResult]
 
-    func search(query: SearchQuery) async -> [SearchResult] {
+    func search(query: SearchQuery, options: FileSearchOptions) async -> [SearchResult] {
         files.filter { MatchScore.score(title: $0.title, query: query) > 0 }
     }
 }

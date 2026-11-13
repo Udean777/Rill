@@ -12,6 +12,11 @@ public final class ActivationPolicyController {
 
     public init() {}
 
+    public func ensureAccessory() {
+        guard regularOverrides == 0 else { return }
+        NSApp.setActivationPolicy(.accessory)
+    }
+
     public func acquireRegular() {
         regularOverrides += 1
         guard regularOverrides == 1 else { return }

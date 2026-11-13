@@ -81,6 +81,8 @@ Everything else in this document exists to make that loop feel instant and predi
 | Click outside / app loses key status   | Hide.                                                                                                                              |
 | Hotkey pressed while palette open      | Hide (toggle semantics, not re-focus).                                                                                             |
 | Palette open, another app steals focus | Hide; selection and query are preserved for the next show _only if_ the palette was hidden by focus loss, not by Esc or execution. |
+| `$20`, `€50`, `20 USD`, `100 IDR`      | Converted to the user's local currency (region from system locale) and shown in a leading Currency section; Enter copies the converted amount. |
+| `wallpaper`, `accessibility`, `privacy`, `wifi` | Matching macOS System Settings panes from the built-in catalogue, shown in a System Settings section above files; Enter opens the pane.          |
 
 Query is preserved across hide-by-focus-loss. Executing a command clears the query. This is the behaviour users have muscle memory for.
 
@@ -110,12 +112,16 @@ struct SearchResult: Identifiable, Sendable, Hashable {
 
 Fixed order, always rendered in this order even when empty (empty sections are dropped, order is not re-sorted):
 
-1. `favorites` — user-pinned results.
-2. `suggestions` — apps used inside the configured window (default 7 days), most used first, capped at 5 (see §5.2).
-3. `applications` — installed apps, shown in pages of the configured size (default 5).
-4. `commands` — built-in and app commands matching the query; a fixed chip row in the root layout.
-5. `files` — Spotlight metadata matches.
-6. `fallback` — "Search the web for …", "Open …", "Calculate …".
+1. `currency` — a live conversion of the typed amount, when the query parses as currency.
+2. `systemSettings` — matching macOS System Settings panes for the typed query.
+3. `favorites` — user-pinned results.
+4. `suggestions` — apps used inside the configured window (default 7 days), most used first, capped at 5 (see §5.2).
+5. `applications` — installed apps, shown in pages of the configured size (default 5).
+6. `commands` — built-in and app commands matching the query; a fixed chip row in the root layout.
+7. `files` — Spotlight metadata matches.
+8. `fallback` — "Search the web for …", "Open …", "Calculate …".
+
+Sections the user switched off in Settings are filtered out before ranking, so a hidden section never contributes a header, a row, or a pager — on a typed query and on the root layout alike. Hiding every section leaves the palette with its search field and footer but no rows.
 
 Suggested apps are excluded from `applications` so a row never appears twice.
 
@@ -157,6 +163,8 @@ Measured on an M-series Mac, app warm, 4 000 apps+commands indexed:
 | Resident memory                   | ≤ 120 MB                                          |
 
 These are release-build gates, checked in `PerformanceTests` and by hand with Instruments. A regression on the first two is a bug, not a nice-to-have.
+
+Currency-conversion rows render first when present, but are latency-tier rather than instant-tier: they run concurrently with apps/commands/files and may appear after those results (or not at all on a cold, offline first keystroke). The ≤ 50 ms keystroke budget applies to non-conversion results only; conversion latency is unbounded by network and degrades silently.
 
 ## 5. Interaction design
 
@@ -260,12 +268,13 @@ A keyboard launcher must be usable by VoiceOver and Switch Control:
 
 ### 5.5 Preferences (separate window)
 
-A dedicated `NSWindow` owned by `SettingsWindowController` (never a SwiftUI `Settings` scene — scenes own activation). Four tabs, 560×420:
+A dedicated `NSWindow` owned by `SettingsWindowController` (never a SwiftUI `Settings` scene — scenes own activation). Five tabs, 560×420:
 
 | Tab | Contents |
 | --- | --- |
 | **General** | Hotkey recorder with inline conflict error, menu bar icon toggle, launch at login (`SMAppService.mainApp`), keyboard hint toggle, reset to defaults (favorites and usage survive), show the welcome window again. |
-| **Search** | File search on/off, current scope (home folder), suggestion window (7/14/30 days), applications per page (3/5/7). |
+| **Search** | File search on/off, current scope (home folder), result sections to show (favorites, suggestions, applications, commands, System Settings, fallback), suggestion window (7/14/30 days), applications per page (3/5/7). |
+| **Clipboard** | Clipboard history on/off, direct paste, image capture, history limit, clear history, clipboard hotkey. |
 | **Data** | Reset usage history (confirmation required), clear pinned items only, reveal the usage JSON in Finder. |
 | **About** | Version and build, repository link, Accessibility permission status and a deep link to the exact System Settings pane. |
 
@@ -325,6 +334,6 @@ Clean Architecture, five Xcode targets, dependencies point inward: `RillDomain` 
 | File search over the whole disk is slow and noisy   | Debounce 60 ms, cap results per section (files: 20), scope to home by default, cancel in-flight queries    |
 | Hotkey conflicts with other launchers / macOS       | Detect ⌘Space conflict, offer alternatives, never silently fail — surface "hotkey unavailable" in Settings |
 | Accessibility permission UX is hostile              | Feature-gate; explain in-context; deep-link to the exact Settings pane; never block the core loop          |
-| Non-sandboxed app looks scary to users              | Hardened runtime, notarised, no network in v1, document exactly what is read                               |
+| Non-sandboxed app looks scary to users              | Hardened runtime, notarised, document exactly what is read. Network is limited to the currency converter (Frankfurter, anonymous, currency codes only — no amount or PII transmitted); everything else stays offline. |
 | Ranking feels random                                | Pure function + golden-file tests + a debug overlay showing each result's score components                 |
 | SwiftUI `WindowGroup` fights a panel-based launcher | Do not use scenes for the palette; AppKit owns the window (`architecture.md` §5.3)                         |

@@ -69,9 +69,7 @@ public final class ClipboardViewModel {
         let results = await searchUseCase(query: query, filter: activeFilter)
         guard !Task.isCancelled else { return }
         self.items = results
-        if let current = selectedItemID, results.contains(where: { $0.id == current }) {
-            // Keep current selection
-        } else {
+        if !results.contains(where: { $0.id == selectedItemID }) {
             self.selectedItemID = results.first?.id
         }
     }

@@ -7,10 +7,16 @@ public final class StatusBarController {
     private var statusItem: NSStatusItem?
     private let onShowPalette: () -> Void
     private let onOpenSettings: () -> Void
+    private let onCheckForUpdates: (() -> Void)?
 
-    public init(onShowPalette: @escaping () -> Void, onOpenSettings: @escaping () -> Void) {
+    public init(
+        onShowPalette: @escaping () -> Void,
+        onOpenSettings: @escaping () -> Void,
+        onCheckForUpdates: (() -> Void)? = nil
+    ) {
         self.onShowPalette = onShowPalette
         self.onOpenSettings = onOpenSettings
+        self.onCheckForUpdates = onCheckForUpdates
     }
 
     /// Installs or removes the menu bar icon (Preferences → General).
@@ -37,6 +43,9 @@ public final class StatusBarController {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Show Rill", action: #selector(showPalette), keyEquivalent: ""))
         menu.addItem(.separator())
+        if onCheckForUpdates != nil {
+            menu.addItem(NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: ""))
+        }
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Rill", action: #selector(quitApp), keyEquivalent: "q"))
@@ -55,6 +64,10 @@ public final class StatusBarController {
 
     @objc private func openSettings() {
         onOpenSettings()
+    }
+
+    @objc private func checkForUpdates() {
+        onCheckForUpdates?()
     }
 
     @objc private func quitApp() {

@@ -1,4 +1,3 @@
-import AppKit
 import RillDomain
 import SwiftUI
 
@@ -40,7 +39,7 @@ public struct ClipboardView: View {
             actionBar
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
+        .task {
             isSearchFocused = true
             viewModel.show()
         }
@@ -140,8 +139,14 @@ public struct ClipboardView: View {
                     ScrollView {
                         LazyVStack(spacing: 1) {
                             ForEach(viewModel.items) { item in
-                                clipboardRow(for: item)
-                                    .id(item.id)
+                                ClipboardRowView(
+                                    item: item,
+                                    isSelected: viewModel.selectedItemID == item.id
+                                )
+                                .id(item.id)
+                                .onTapGesture {
+                                    viewModel.selectedItemID = item.id
+                                }
                             }
                         }
                         .padding(6)
@@ -153,112 +158,6 @@ public struct ClipboardView: View {
                     }
                 }
             }
-        }
-    }
-
-    private func clipboardRow(for item: ClipboardItem) -> some View {
-        let isSelected = viewModel.selectedItemID == item.id
-
-        return HStack(spacing: 8) {
-            typeIcon(for: item)
-                .frame(width: 18, height: 18)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(rowTitle(for: item))
-                    .font(.system(size: 13.5, weight: isSelected ? .medium : .regular))
-                    .lineLimit(1)
-                    .foregroundStyle(.primary)
-
-                HStack(spacing: 4) {
-                    if let app = item.sourceApp {
-                        Text(app.name)
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(.secondary)
-                        Text("•")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
-                    }
-                    Text(item.copiedAt, style: .relative)
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            if item.isPinned {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.orange)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(
-                    isSelected
-                        ? Color.accentColor.opacity(0.14)
-                        : Color.clear
-                )
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            viewModel.selectedItemID = item.id
-        }
-    }
-
-    private func rowTitle(for item: ClipboardItem) -> String {
-        switch item.contentType {
-        case .color:
-            return item.metadata.colorHex ?? item.textContent ?? "Color"
-        case .image:
-            if let dims = item.metadata.imageDimensions {
-                return "Image (\(dims.width) × \(dims.height))"
-            }
-            return "Image"
-        case .files:
-            return item.textContent ?? "Files"
-        case .link:
-            if let url = URL(string: item.textContent ?? ""), let host = url.host {
-                return host
-            }
-            return item.textContent ?? "Link"
-        case .code:
-            return item.textContent?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Code"
-        case .text:
-            return item.textContent?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Text"
-        }
-    }
-
-    @ViewBuilder
-    private func typeIcon(for item: ClipboardItem) -> some View {
-        switch item.contentType {
-        case .color:
-            Circle()
-                .fill(Color(hex: item.metadata.colorHex ?? "#000000"))
-                .frame(width: 12, height: 12)
-                .overlay(Circle().stroke(Color.primary.opacity(0.2), lineWidth: 0.5))
-        case .image:
-            Image(systemName: "photo")
-                .font(.system(size: 11))
-                .foregroundStyle(.purple)
-        case .code:
-            Image(systemName: "chevron.left.forwardslash.chevron.right")
-                .font(.system(size: 10))
-                .foregroundStyle(.green)
-        case .link:
-            Image(systemName: "link")
-                .font(.system(size: 11))
-                .foregroundStyle(.blue)
-        case .files:
-            Image(systemName: "doc.on.doc")
-                .font(.system(size: 11))
-                .foregroundStyle(.orange)
-        case .text:
-            Image(systemName: "text.alignleft")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -291,32 +190,5 @@ public struct ClipboardView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
         }
-    }
-}
-
-private extension Color {
-    init(hex: String) {
-        let clean = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: clean).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch clean.count {
-        case 3:
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6:
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8:
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (255, 0, 0, 0)
-        }
-
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue: Double(b) / 255,
-            opacity: Double(a) / 255
-        )
     }
 }
