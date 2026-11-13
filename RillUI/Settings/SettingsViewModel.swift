@@ -15,6 +15,7 @@ public final class SettingsViewModel {
     public var isHotkeyRegistered = true
     public var clipboardHotkeyError: String?
     public var isClipboardHotkeyRegistered = true
+    public var updateState: UpdateState = .idle
 
     private let preferencesStore: PreferencesStoring
     private let onHotkeyChanged: ((Hotkey) async -> Bool)?
@@ -30,6 +31,9 @@ public final class SettingsViewModel {
 
     /// Assigned by the composition root once the welcome window exists.
     @ObservationIgnored public var onShowWelcome: (() -> Void)?
+    @ObservationIgnored public var onCheckForUpdates: (() -> Void)?
+    @ObservationIgnored public var onInstallUpdate: (() -> Void)?
+    @ObservationIgnored public var onRestartToUpdate: (() -> Void)?
 
     public init(
         preferencesStore: PreferencesStoring,
@@ -312,6 +316,18 @@ public final class SettingsViewModel {
 
     public func revealUsageData() {
         revealUsageFile?()
+    }
+
+    public func checkForUpdates() {
+        onCheckForUpdates?()
+    }
+
+    public func installUpdate() {
+        onInstallUpdate?()
+    }
+
+    public func restartToUpdate() {
+        onRestartToUpdate?()
     }
 
     private func save() {

@@ -20,6 +20,7 @@ final class AppEnvironment {
     // Retained for its lifetime — deallocation removes the status item from the bar.
     private let statusBarController: StatusBarController
     private let settingsViewModel: SettingsViewModel
+    private let updateManager: UpdateManager
 
     private var currentHotkeyToken: HotkeyToken?
     private var currentClipboardHotkeyToken: HotkeyToken?
@@ -33,7 +34,8 @@ final class AppEnvironment {
         usageTracker: AppUsageTracker,
         clipboardWatcher: PasteboardWatcher,
         statusBarController: StatusBarController,
-        settingsViewModel: SettingsViewModel
+        settingsViewModel: SettingsViewModel,
+        updateManager: UpdateManager
     ) {
         self.paletteWindowController = paletteWindowController
         self.settingsWindowController = settingsWindowController
@@ -44,6 +46,7 @@ final class AppEnvironment {
         self.clipboardWatcher = clipboardWatcher
         self.statusBarController = statusBarController
         self.settingsViewModel = settingsViewModel
+        self.updateManager = updateManager
     }
 
     static func live() -> AppEnvironment {
@@ -282,6 +285,22 @@ final class AppEnvironment {
             }
         }
 
+        let updateManager = UpdateManager()
+        updateManager.onStateChanged = { [weak settingsViewModel] newState in
+            settingsViewModel?.updateState = newState
+        }
+        settingsViewModel.onCheckForUpdates = { [weak updateManager] in
+            Task {
+                await updateManager?.checkForUpdates(isUserInitiated: true)
+            }
+        }
+        settingsViewModel.onInstallUpdate = { [weak updateManager] in
+            updateManager?.downloadAndInstallUpdate()
+        }
+        settingsViewModel.onRestartToUpdate = { [weak updateManager] in
+            updateManager?.quitAfterUpdate(relaunch: true)
+        }
+
         let env = AppEnvironment(
             paletteWindowController: windowController,
             settingsWindowController: settingsWindowController,
@@ -292,9 +311,15 @@ final class AppEnvironment {
             clipboardWatcher: clipboardWatcher,
             statusBarController: StatusBarController(
                 onShowPalette: { windowController.show() },
-                onOpenSettings: { settingsWindowController.show() }
+                onOpenSettings: { settingsWindowController.show() },
+                onCheckForUpdates: {
+                    Task {
+                        await updateManager.checkForUpdates(isUserInitiated: true)
+                    }
+                }
             ),
-            settingsViewModel: settingsViewModel
+            settingsViewModel: settingsViewModel,
+            updateManager: updateManager
         )
         environmentRef = env
         return env
@@ -313,6 +338,12 @@ final class AppEnvironment {
             if !prefs.hasCompletedOnboarding {
                 onboardingWindowController.show()
             }
+        }
+
+        // Run a silent update check off the startup critical path (throttled to 24h).
+        Task(priority: .utility) { [weak updateManager] in
+            try? await Task.sleep(for: .seconds(5))
+            await updateManager?.checkIfDue()
         }
     }
 

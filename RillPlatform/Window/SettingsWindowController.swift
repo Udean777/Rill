@@ -23,7 +23,7 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate {
         let settingsView = SettingsView(viewModel: viewModel)
         let hostingView = NSHostingView(rootView: settingsView)
 
-        let window = NSWindow(
+        let window = SettingsWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 420),
             styleMask: [.titled, .closable],
             backing: .buffered,
@@ -64,5 +64,21 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate {
             x: visible.midX - window.frame.width / 2,
             y: visible.midY - window.frame.height / 2
         ))
+    }
+}
+
+/// Supports `⌘W` to close Settings while `.accessory` (no app menu bar),
+/// without enabling `⌘Q` to quit the background launcher.
+private final class SettingsWindow: NSWindow {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if super.performKeyEquivalent(with: event) {
+            return true
+        }
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if modifiers == .command, event.charactersIgnoringModifiers?.lowercased() == "w" {
+            performClose(nil)
+            return true
+        }
+        return false
     }
 }

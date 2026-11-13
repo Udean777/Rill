@@ -775,6 +775,10 @@ public struct SettingsView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 }
+
+                cardDivider
+
+                updatesRow
             }
 
             settingsCard(title: "Source") {
@@ -888,6 +892,74 @@ public struct SettingsView: View {
 
     private var appBuild: String {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    }
+
+    @ViewBuilder
+    private var updatesRow: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Updates")
+                    .font(.system(size: 13))
+                if let subtitle = updateStatusSubtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            switch viewModel.updateState {
+            case .checking:
+                ProgressView()
+                    .controlSize(.small)
+            case .downloading(let progress):
+                if let progress {
+                    Text("\(Int(progress * 100))%")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            case .installing:
+                ProgressView()
+                    .controlSize(.small)
+            case .available:
+                Button("Update Now") {
+                    viewModel.installUpdate()
+                }
+            case .readyToQuit:
+                Button("Restart Rill") {
+                    viewModel.restartToUpdate()
+                }
+            case .idle, .upToDate, .failed:
+                Button("Check for Updates") {
+                    viewModel.checkForUpdates()
+                }
+            }
+        }
+    }
+
+    private var updateStatusSubtitle: String? {
+        switch viewModel.updateState {
+        case .idle:
+            nil
+        case .checking:
+            String(localized: "Checking GitHub Releases…")
+        case .upToDate:
+            String(localized: "You’re up to date.")
+        case .available(let version):
+            String(localized: "Version \(version) is available.")
+        case .downloading:
+            String(localized: "Downloading update…")
+        case .installing:
+            String(localized: "Installing update…")
+        case .readyToQuit(let version):
+            String(localized: "Version \(version) installed. Restart to apply.")
+        case .failed(let message):
+            message
+        }
     }
 
     private func openRepository() {
