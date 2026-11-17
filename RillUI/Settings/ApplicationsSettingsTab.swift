@@ -17,10 +17,10 @@ struct ApplicationsSettingsTab: View {
                 if viewModel.preferences.values.applicationsLauncherEnabled {
                     SettingsCardDivider()
 
-                    HStack {
+                    SettingsResponsiveRow {
                         Text("Global Hotkey")
                             .font(.system(size: 13))
-                        Spacer()
+                    } accessory: {
                         HotkeyRecorderView(
                             hotkey: Binding(
                                 get: { viewModel.preferences.values.applicationsHotkey },
@@ -110,15 +110,16 @@ struct ApplicationsSettingsTab: View {
 
                     SettingsCardDivider()
 
-                    HStack {
+                    SettingsResponsiveRow {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Custom layout & folders")
                                 .font(.system(size: 13))
                             Text("Restore default alphabetical order, remove folders, and unhide all apps.")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        Spacer()
+                    } accessory: {
                         Button("Reset Layout", role: .destructive) {
                             isConfirmingReset = true
                         }
@@ -150,7 +151,7 @@ struct ApplicationsSettingsTab: View {
     private var trackpadSystemStatusGuide: some View {
         let isReady = viewModel.permissions.isSystemFourFingerPinchDisabled
         return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 12) {
+            SettingsResponsiveRow {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text("macOS Launchpad Gesture")
@@ -172,8 +173,9 @@ struct ApplicationsSettingsTab: View {
                     )
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer()
+            } accessory: {
                 Button("Open Trackpad Settings…") {
                     viewModel.permissions.openTrackpadMoreGesturesSettings()
                 }

@@ -39,6 +39,28 @@ struct SettingsCardDivider: View {
     }
 }
 
+/// A label with a trailing control: side by side when the row has room,
+/// stacked when a narrow window would squeeze the text into a ragged column.
+struct SettingsResponsiveRow<Content: View, Accessory: View>: View {
+    @ViewBuilder let content: () -> Content
+    @ViewBuilder let accessory: () -> Accessory
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 12) {
+                content()
+                Spacer(minLength: 8)
+                accessory()
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                content()
+                accessory()
+            }
+        }
+    }
+}
+
 struct AppLogoView: View {
     let size: CGFloat
     let cornerRadius: CGFloat
@@ -98,7 +120,7 @@ struct PermissionStatusRow: View {
     let action: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        SettingsResponsiveRow {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(title)
@@ -119,10 +141,9 @@ struct PermissionStatusRow: View {
                 Text(subtitle)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            Spacer(minLength: 8)
-
+        } accessory: {
             Button(actionTitle, action: action)
                 .controlSize(.small)
         }
@@ -144,11 +165,12 @@ struct PermissionsCardContent: View {
                 )
 
                 if !viewModel.permissions.isFullDiskAccessGranted {
-                    HStack(spacing: 8) {
+                    SettingsResponsiveRow {
                         Text("If Rill is not listed, click Reveal App and drag Rill.app into Full Disk Access.")
                             .font(.system(size: 10.5))
                             .foregroundStyle(.secondary)
-                        Spacer()
+                            .fixedSize(horizontal: false, vertical: true)
+                    } accessory: {
                         Button("Reveal App") {
                             viewModel.permissions.revealApplicationInFinder()
                         }
@@ -160,7 +182,7 @@ struct PermissionsCardContent: View {
             if !viewModel.permissions.isFullDiskAccessGranted {
                 SettingsCardDivider()
 
-                HStack(alignment: .center, spacing: 12) {
+                SettingsResponsiveRow {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Protected Folders")
                             .font(.system(size: 13))
@@ -168,10 +190,9 @@ struct PermissionsCardContent: View {
                         Text("Authorize Desktop, Downloads, and Documents upfront without Full Disk Access.")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-
-                    Spacer(minLength: 8)
-
+                } accessory: {
                     Button(viewModel.permissions.isRequestingFolderAccess ? "Requesting…" : "Grant Folders") {
                         viewModel.permissions.requestProtectedFolderAccess()
                     }

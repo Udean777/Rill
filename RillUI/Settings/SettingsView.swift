@@ -44,7 +44,7 @@ public struct SettingsView: View {
             detailContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 560, height: 420)
+        .frame(minWidth: 560, maxWidth: .infinity, minHeight: 420, maxHeight: .infinity)
         .task {
             await viewModel.load()
         }

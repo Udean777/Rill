@@ -131,9 +131,34 @@ public struct ApplicationsGridView: View {
         )
     }
 
+    /// One tile's design size. The whole page is scaled down to fit the screen,
+    /// so rows × columns never pushes the page indicator off-screen.
+    private static let tileWidth: CGFloat = 140
+    private static let tileHeight: CGFloat = 140
+    private static let columnSpacing: CGFloat = 18
+    private static let rowSpacing: CGFloat = 22
+
     private var pagedGrid: some View {
-        VStack {
-            LazyVGrid(columns: gridColumns, spacing: 22) {
+        GeometryReader { proxy in
+            let designSize = CGSize(
+                width: CGFloat(viewModel.columns) * Self.tileWidth
+                    + CGFloat(max(0, viewModel.columns - 1)) * Self.columnSpacing,
+                height: CGFloat(viewModel.rows) * Self.tileHeight
+                    + CGFloat(max(0, viewModel.rows - 1)) * Self.rowSpacing
+            )
+            let scale = min(
+                1,
+                proxy.size.width / max(designSize.width, 1),
+                proxy.size.height / max(designSize.height, 1)
+            )
+
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.fixed(Self.tileWidth), spacing: Self.columnSpacing),
+                    count: viewModel.columns
+                ),
+                spacing: Self.rowSpacing
+            ) {
                 ForEach(viewModel.pagedNodes) { node in
                     ApplicationGridTile(
                         node: node,
@@ -164,14 +189,15 @@ public struct ApplicationsGridView: View {
                     }
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            Spacer(minLength: 0)
+            .frame(width: designSize.width, height: designSize.height, alignment: .top)
+            .scaleEffect(scale)
+            .frame(width: designSize.width * scale, height: designSize.height * scale)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.18),
+                value: viewModel.currentPage
+            )
         }
-        .animation(
-            reduceMotion ? nil : .easeOut(duration: 0.18),
-            value: viewModel.currentPage
-        )
     }
 
     private var filteredGrid: some View {
@@ -219,14 +245,23 @@ public struct ApplicationsGridView: View {
             }
             .buttonStyle(.plain)
             .disabled(viewModel.currentPage == 0)
+            .accessibilityLabel(String(localized: "Previous page"))
 
-            ForEach(0..<viewModel.pageCount, id: \.self) { index in
-                Circle()
-                    .fill(index == viewModel.currentPage ? Color.primary : Color.primary.opacity(0.25))
-                    .frame(width: 7, height: 7)
-                    .onTapGesture {
+            HStack(spacing: 2) {
+                ForEach(0..<viewModel.pageCount, id: \.self) { index in
+                    Button {
                         viewModel.currentPage = index
+                    } label: {
+                        Circle()
+                            .fill(index == viewModel.currentPage ? Color.primary : Color.primary.opacity(0.25))
+                            .frame(width: 7, height: 7)
+                            .frame(width: 18, height: 18)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "Page \(index + 1)"))
+                    .accessibilityAddTraits(index == viewModel.currentPage ? .isSelected : [])
+                }
             }
 
             Button {
@@ -236,9 +271,11 @@ public struct ApplicationsGridView: View {
             }
             .buttonStyle(.plain)
             .disabled(viewModel.currentPage >= viewModel.pageCount - 1)
+            .accessibilityLabel(String(localized: "Next page"))
         }
         .foregroundStyle(.secondary)
         .padding(.bottom, 4)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func folderOverlay(folder: (id: UUID, name: String, items: [ApplicationGridItem])) -> some View {
