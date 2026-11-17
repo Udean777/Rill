@@ -21,6 +21,24 @@ extension AppEnvironment {
         )
     }
 
+    func updateApplicationsHotkey(_ hotkey: Hotkey) async -> Bool {
+        await replaceHotkey(
+            hotkey,
+            storingIn: \.currentApplicationsHotkeyToken,
+            onTrigger: { [weak applicationsWindowController, weak paletteWindowController] in
+                paletteWindowController?.hide(animated: false)
+                applicationsWindowController?.toggle()
+            }
+        )
+    }
+
+    func unregisterApplicationsHotkey() async {
+        if let token = currentApplicationsHotkeyToken {
+            await hotkeyManager.unregister(token)
+            currentApplicationsHotkeyToken = nil
+        }
+    }
+
     private func replaceHotkey(
         _ hotkey: Hotkey,
         storingIn keyPath: ReferenceWritableKeyPath<AppEnvironment, HotkeyToken?>,
@@ -50,13 +68,14 @@ extension AppEnvironment {
     static func wirePaletteCallbacks(
         viewModel: PaletteViewModel,
         windowController: PaletteWindowController,
+        applicationsWindowController: ApplicationsWindowController,
         settingsWindowController: SettingsWindowController,
         executeUseCase: ExecuteResultUseCase,
         usageStore: JSONUsageStore,
         clock: SystemClock
     ) {
         let log = Logger(subsystem: "com.ssajudn.Rill", category: "actions")
-        viewModel.onExecute = { [weak windowController, weak viewModel, weak settingsWindowController] result in
+        viewModel.onExecute = { [weak windowController, weak applicationsWindowController, weak viewModel, weak settingsWindowController] result in
             if case .openSettings = result.primaryAction {
                 windowController?.hide()
                 viewModel?.reset()
@@ -66,6 +85,13 @@ extension AppEnvironment {
 
             if case .openClipboardHistory = result.primaryAction {
                 viewModel?.openClipboardHistory()
+                return
+            }
+
+            if case .openApplicationsLauncher = result.primaryAction {
+                windowController?.hide(animated: false)
+                viewModel?.reset()
+                applicationsWindowController?.show()
                 return
             }
 
@@ -91,6 +117,25 @@ extension AppEnvironment {
             Task {
                 await usageStore.setPinned(result, isPinned: !isPinned, at: clock.now)
                 viewModel.refresh()
+            }
+        }
+    }
+
+    static func wireApplicationsGridCallbacks(
+        viewModel: ApplicationsGridViewModel,
+        windowController: ApplicationsWindowController,
+        executeUseCase: ExecuteResultUseCase
+    ) {
+        let log = Logger(subsystem: "com.ssajudn.Rill", category: "actions")
+        viewModel.onExecute = { [weak windowController] result in
+            windowController?.hide(animated: false)
+            Task {
+                do {
+                    try await executeUseCase(result)
+                } catch {
+                    log.error("applications grid action failed: \(String(describing: error), privacy: .public)")
+                    NSSound.beep()
+                }
             }
         }
     }

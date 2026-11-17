@@ -61,7 +61,12 @@ struct UserDefaultsPreferencesStoreTests {
             fileSearchExcludedPaths: ["/Users/test/Projects/node_modules"],
             calculatorEnabled: false,
             webSearchEnabled: false,
-            defaultBrowserBundleID: "com.google.Chrome"
+            defaultBrowserBundleID: "com.google.Chrome",
+            applicationsLauncherEnabled: false,
+            applicationsPinchGestureEnabled: false,
+            applicationsPinchSensitivity: 0.30,
+            applicationsGridColumns: 6,
+            applicationsGridRows: 4
         )
         await store.save(saved)
         let loaded = await store.load()
@@ -75,6 +80,11 @@ struct UserDefaultsPreferencesStoreTests {
         #expect(!loaded.calculatorEnabled)
         #expect(!loaded.webSearchEnabled)
         #expect(loaded.defaultBrowserBundleID == "com.google.Chrome")
+        #expect(!loaded.applicationsLauncherEnabled)
+        #expect(!loaded.applicationsPinchGestureEnabled)
+        #expect(loaded.applicationsPinchSensitivity == 0.30)
+        #expect(loaded.applicationsGridColumns == 6)
+        #expect(loaded.applicationsGridRows == 4)
 
         await store.save(Preferences(defaultBrowserBundleID: nil))
         let resetBrowser = await store.load()

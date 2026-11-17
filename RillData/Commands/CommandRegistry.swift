@@ -49,6 +49,18 @@ public struct CommandRegistry: CommandProviding {
 
         results.append(
             SearchResult(
+                id: .init(source: "command", raw: "open-applications-launcher"),
+                title: String(localized: "Applications Grid"),
+                subtitle: String(localized: "Open floating custom Applications launcher"),
+                icon: .systemSymbol("square.grid.3x3"),
+                section: .commands,
+                kind: .command,
+                primaryAction: .openApplicationsLauncher
+            )
+        )
+
+        results.append(
+            SearchResult(
                 id: .init(source: "command", raw: "open-applications"),
                 title: String(localized: "Open Applications"),
                 icon: .systemSymbol("square.grid.2x2"),

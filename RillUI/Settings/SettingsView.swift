@@ -9,6 +9,7 @@ public struct SettingsView: View {
     private enum SettingsTab: String, CaseIterable, Identifiable {
         case general = "General"
         case search = "Search"
+        case applications = "Applications"
         case clipboard = "Clipboard"
         case data = "Data"
         case about = "About"
@@ -19,6 +20,7 @@ public struct SettingsView: View {
             switch self {
             case .general: "gearshape"
             case .search: "magnifyingglass"
+            case .applications: "square.grid.3x3"
             case .clipboard: "doc.on.clipboard"
             case .data: "externaldrive"
             case .about: "info.circle"
@@ -93,6 +95,8 @@ public struct SettingsView: View {
                     GeneralSettingsTab(viewModel: viewModel)
                 case .search:
                     SearchSettingsTab(viewModel: viewModel)
+                case .applications:
+                    ApplicationsSettingsTab(viewModel: viewModel)
                 case .clipboard:
                     ClipboardSettingsTab(viewModel: viewModel)
                 case .data:

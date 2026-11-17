@@ -24,7 +24,7 @@ public final class SystemActionPerformer: ActionPerforming {
                 pasteboard.setString(text, forType: .string)
             }
 
-        case .openSettings, .openClipboardHistory:
+        case .openSettings, .openClipboardHistory, .openApplicationsLauncher:
             // The app layer intercepts this before dispatch; reaching the
             // performer means the routing is broken, so fail loudly.
             throw SystemActionError.unsupportedAction
@@ -160,6 +160,48 @@ public final class SystemActionPerformer: ActionPerforming {
     @MainActor
     public static func revealApplicationInFinder() {
         NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+    }
+
+    @MainActor
+    public static func openTrackpadMoreGesturesSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Trackpad-Settings.extension?MoreGestures") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @MainActor
+    public static func isSystemFourFingerPinchDisabled() -> Bool {
+        // macOS 26+ (Tahoe) stores the 4-finger pinch "Apps" gesture in com.apple.Spotlight.
+        if let spotlightDefaults = UserDefaults(suiteName: "com.apple.Spotlight"),
+           let appBrowseEnabled = spotlightDefaults.object(forKey: "trackpadAppBrowseEnabled") as? Bool,
+           !appBrowseEnabled {
+            return true
+        }
+
+        // Legacy macOS stores the Launchpad pinch toggle in com.apple.dock.
+        if let dockDefaults = UserDefaults(suiteName: "com.apple.dock"),
+           let launchpadEnabled = dockDefaults.object(forKey: "showLaunchpadGestureEnabled") as? Bool,
+           !launchpadEnabled {
+            return true
+        }
+
+        // Hardware-level fallback when all 4-finger pinch gestures are off.
+        let trackpadDomains = [
+            "com.apple.AppleMultitouchTrackpad",
+            "com.apple.driver.AppleBluetoothMultitouch.trackpad",
+        ]
+        var foundTrackpadSetting = false
+        for domain in trackpadDomains {
+            guard let defaults = UserDefaults(suiteName: domain),
+                  let raw = defaults.object(forKey: "TrackpadFourFingerPinchGesture") as? Int else {
+                continue
+            }
+            foundTrackpadSetting = true
+            if raw != 0 {
+                return false
+            }
+        }
+        return foundTrackpadSetting
     }
 
     @MainActor

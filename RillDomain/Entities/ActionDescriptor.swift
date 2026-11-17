@@ -25,4 +25,7 @@ public enum ActionDescriptor: Sendable, Hashable {
 
     /// Opens the Clipboard History palette mode.
     case openClipboardHistory
+
+    /// Opens the floating Applications grid launcher.
+    case openApplicationsLauncher
 }

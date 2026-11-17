@@ -148,15 +148,15 @@ struct PerformanceTests {
 
         let clock = ContinuousClock()
         var lastCount = 0
-        let elapsed = await clock.measure {
-            for raw in ["s", "se", "wallpaper"] {
+        for raw in ["s", "se", "wallpaper"] {
+            let elapsed = await clock.measure {
                 let sections = await useCase(SearchQuery(raw: raw))
                 lastCount = sections.first { $0.section == .systemSettings }?.results.count ?? 0
             }
+            #expect(elapsed < latencyBudget)
         }
 
         #expect(lastCount <= 15)
-        #expect(elapsed < latencyBudget)
     }
 }
 

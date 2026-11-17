@@ -512,6 +512,9 @@ A launcher that activates changes the menu bar, the Dock highlight, and ⌘Tab o
 **ADR-009 — Currency converter uses Frankfurter; this is the app's first network call.**
 Exchange rates come from `api.frankfurter.dev/v2/rate/{base}/{quote}` — free, no API key, 219 currencies, ECB reference rates, mid-market, no quotas, and caching explicitly encouraged. It is accessed through the `CurrencyRateFetching` port (Domain) implemented in `RillData` with `URLSession`. Rates are cached in memory with a TTL; nothing is persisted to disk. The local currency is read via `LocaleProviding` (system locale), never transmitted. This relaxes the "no network in v1" constraint (design.md §9) for this feature only; the converter runs concurrently with other providers and degrades silently when offline, so the ≤ 50 ms keystroke budget for non-conversion results is preserved. Revisit if users need provider-specific official rates or a manual default currency.
 
+**ADR-010 — 4-finger trackpad pinch uses `MultitouchSupport.framework` behind `TrackpadGestureMonitoring`.**
+`NSEvent.addGlobalMonitorForEvents` does not reliably deliver raw multi-touch finger counts across applications. Loading `/System/Library/PrivateFrameworks/MultitouchSupport.framework/MultitouchSupport` via `dlopen`/`dlsym` inside `TrackpadPinchMonitor` (`RillPlatform`) provides 120 Hz contact frames for 4-finger pinch-in and pinch-out detection without requiring an Input Monitoring event tap, and degrades gracefully if unavailable. This is acceptable because Rill ships outside the Mac App Store (ADR-006) and isolates all private symbols behind the `TrackpadGestureMonitoring` port.
+
 ## 11. Known shortcuts
 
 Each is a deliberate deferral with an upgrade path, and each appears as a `shortcut:` comment at the code site.

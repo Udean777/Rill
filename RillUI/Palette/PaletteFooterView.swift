@@ -129,6 +129,8 @@ struct PaletteFooterView: View {
             return "Settings"
         case .openClipboardHistory:
             return "Clipboard"
+        case .openApplicationsLauncher:
+            return "Open"
         }
     }
 

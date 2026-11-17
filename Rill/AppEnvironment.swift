@@ -9,6 +9,7 @@ import RillUI
 @MainActor
 final class AppEnvironment {
     let paletteWindowController: PaletteWindowController
+    let applicationsWindowController: ApplicationsWindowController
     let settingsWindowController: SettingsWindowController
     let onboardingWindowController: OnboardingWindowController
     let hotkeyManager: CarbonHotkeyManager
@@ -19,14 +20,19 @@ final class AppEnvironment {
     private let clipboardWatcher: PasteboardWatcher
     // Retained for its lifetime — deallocation removes the status item from the bar.
     private let statusBarController: StatusBarController
+    private let trackpadPinchMonitor: TrackpadPinchMonitor
+    private let applicationCatalog: ApplicationCatalog
+    private let systemSettingsCatalog: SystemSettingsCatalog
     private let settingsViewModel: SettingsViewModel
     private let updateManager: UpdateManager
 
     var currentHotkeyToken: HotkeyToken?
     var currentClipboardHotkeyToken: HotkeyToken?
+    var currentApplicationsHotkeyToken: HotkeyToken?
 
     init(
         paletteWindowController: PaletteWindowController,
+        applicationsWindowController: ApplicationsWindowController,
         settingsWindowController: SettingsWindowController,
         onboardingWindowController: OnboardingWindowController,
         hotkeyManager: CarbonHotkeyManager,
@@ -34,10 +40,14 @@ final class AppEnvironment {
         usageTracker: AppUsageTracker,
         clipboardWatcher: PasteboardWatcher,
         statusBarController: StatusBarController,
+        trackpadPinchMonitor: TrackpadPinchMonitor,
+        applicationCatalog: ApplicationCatalog,
+        systemSettingsCatalog: SystemSettingsCatalog,
         settingsViewModel: SettingsViewModel,
         updateManager: UpdateManager
     ) {
         self.paletteWindowController = paletteWindowController
+        self.applicationsWindowController = applicationsWindowController
         self.settingsWindowController = settingsWindowController
         self.onboardingWindowController = onboardingWindowController
         self.hotkeyManager = hotkeyManager
@@ -45,6 +55,9 @@ final class AppEnvironment {
         self.usageTracker = usageTracker
         self.clipboardWatcher = clipboardWatcher
         self.statusBarController = statusBarController
+        self.trackpadPinchMonitor = trackpadPinchMonitor
+        self.applicationCatalog = applicationCatalog
+        self.systemSettingsCatalog = systemSettingsCatalog
         self.settingsViewModel = settingsViewModel
         self.updateManager = updateManager
     }
@@ -58,10 +71,13 @@ final class AppEnvironment {
         let launchAtLogin = LaunchAtLogin()
         let currencyRateFetcher = FrankfurterRateFetcher(clock: clock)
         let localeProvider = SystemLocaleProvider()
+        let applicationCatalog = ApplicationCatalog()
+        let systemSettingsCatalog = SystemSettingsCatalog()
+        let applicationsLayoutStore = JSONApplicationsLayoutStore()
 
         let searchUseCase = SearchUseCase(
             commands: CommandRegistry(),
-            applications: ApplicationCatalog(),
+            applications: applicationCatalog,
             files: fileSearch,
             usage: usageStore,
             clock: clock,
@@ -70,7 +86,14 @@ final class AppEnvironment {
             },
             currencyRates: currencyRateFetcher,
             locale: localeProvider,
-            systemSettings: SystemSettingsCatalog()
+            systemSettings: systemSettingsCatalog
+        )
+        let loadApplicationsGridUseCase = LoadApplicationsGridUseCase(
+            applications: applicationCatalog,
+            layoutStore: applicationsLayoutStore,
+            preferences: {
+                await preferencesStore.load()
+            }
         )
         let executeUseCase = ExecuteResultUseCase(
             performer: SystemActionPerformer(),
@@ -106,6 +129,14 @@ final class AppEnvironment {
 
         let viewModel = PaletteViewModel(searchUseCase: searchUseCase)
         let windowController = PaletteWindowController(viewModel: viewModel)
+        let applicationsGridViewModel = ApplicationsGridViewModel(
+            loadUseCase: loadApplicationsGridUseCase,
+            layoutStore: applicationsLayoutStore
+        )
+        let applicationsWindowController = ApplicationsWindowController(
+            viewModel: applicationsGridViewModel
+        )
+        let trackpadPinchMonitor = TrackpadPinchMonitor()
 
         let clipboardViewModel = ClipboardViewModel(
             searchUseCase: searchClipboardUseCase,
@@ -181,6 +212,19 @@ final class AppEnvironment {
             },
             getInstalledBrowsers: {
                 SystemActionPerformer.installedBrowsers()
+            },
+            onApplicationsHotkeyChanged: { newHotkey in
+                await environmentRef?.updateApplicationsHotkey(newHotkey) ?? false
+            },
+            onResetApplicationsLayout: {
+                await applicationsLayoutStore.reset()
+                await applicationsGridViewModel.reload()
+            },
+            openTrackpadSettings: {
+                SystemActionPerformer.openTrackpadMoreGesturesSettings()
+            },
+            checkSystemFourFingerPinchDisabled: {
+                SystemActionPerformer.isSystemFourFingerPinchDisabled()
             }
         )
         let settingsViewModel = SettingsViewModel(
@@ -220,10 +264,16 @@ final class AppEnvironment {
         wirePaletteCallbacks(
             viewModel: viewModel,
             windowController: windowController,
+            applicationsWindowController: applicationsWindowController,
             settingsWindowController: settingsWindowController,
             executeUseCase: executeUseCase,
             usageStore: usageStore,
             clock: clock
+        )
+        wireApplicationsGridCallbacks(
+            viewModel: applicationsGridViewModel,
+            windowController: applicationsWindowController,
+            executeUseCase: executeUseCase
         )
 
         let updateManager = UpdateManager(clock: clock)
@@ -234,6 +284,7 @@ final class AppEnvironment {
 
         let env = AppEnvironment(
             paletteWindowController: windowController,
+            applicationsWindowController: applicationsWindowController,
             settingsWindowController: settingsWindowController,
             onboardingWindowController: onboardingWindowController,
             hotkeyManager: hotkeyManager,
@@ -249,6 +300,9 @@ final class AppEnvironment {
                     }
                 }
             ),
+            trackpadPinchMonitor: trackpadPinchMonitor,
+            applicationCatalog: applicationCatalog,
+            systemSettingsCatalog: systemSettingsCatalog,
             settingsViewModel: settingsViewModel,
             updateManager: updateManager
         )
@@ -260,19 +314,27 @@ final class AppEnvironment {
         usageTracker.start()
         clipboardWatcher.start()
         paletteWindowController.prewarm()
+        applicationsWindowController.prewarm()
 
         Task {
             let prefs = await preferencesStore.load()
             apply(preferences: prefs)
             settingsViewModel.isHotkeyRegistered = await updateHotkey(prefs.hotkey)
             settingsViewModel.isClipboardHotkeyRegistered = await updateClipboardHotkey(prefs.clipboardHotkey)
+            if prefs.applicationsLauncherEnabled {
+                settingsViewModel.isApplicationsHotkeyRegistered = await updateApplicationsHotkey(
+                    prefs.applicationsHotkey
+                )
+            }
             if !prefs.hasCompletedOnboarding {
                 onboardingWindowController.show()
             }
         }
 
-        // Run a silent update check off the startup critical path (throttled to 24h).
-        Task(priority: .utility) { [weak updateManager] in
+        // Prewarm catalogs and run a silent update check off the startup critical path.
+        Task(priority: .utility) { [applicationCatalog, systemSettingsCatalog, weak updateManager] in
+            _ = await applicationCatalog.applications()
+            _ = await systemSettingsCatalog.settings()
             try? await Task.sleep(for: .seconds(5))
             await updateManager?.checkIfDue()
         }
@@ -282,6 +344,39 @@ final class AppEnvironment {
     func apply(preferences: Preferences) {
         statusBarController.setEnabled(preferences.statusBarEnabled)
         paletteWindowController.apply(preferences: preferences)
+        applicationsWindowController.apply(preferences: preferences)
+
+        let pinchAllowed = preferences.applicationsLauncherEnabled
+            && preferences.applicationsPinchGestureEnabled
+            && SystemActionPerformer.isSystemFourFingerPinchDisabled()
+        if pinchAllowed {
+            trackpadPinchMonitor.updateSensitivity(preferences.applicationsPinchSensitivity)
+            trackpadPinchMonitor.start(sensitivity: preferences.applicationsPinchSensitivity) { [weak self] direction in
+                guard let self else { return }
+                switch direction {
+                case .pinchIn:
+                    self.paletteWindowController.hide(animated: false)
+                    self.applicationsWindowController.show()
+                case .pinchOut:
+                    self.applicationsWindowController.hide()
+                }
+            }
+        } else {
+            trackpadPinchMonitor.stop()
+        }
+
+        Task {
+            if preferences.applicationsLauncherEnabled {
+                if currentApplicationsHotkeyToken == nil {
+                    settingsViewModel.isApplicationsHotkeyRegistered = await updateApplicationsHotkey(
+                        preferences.applicationsHotkey
+                    )
+                }
+            } else {
+                await unregisterApplicationsHotkey()
+                applicationsWindowController.hide(animated: false)
+            }
+        }
     }
 }
 

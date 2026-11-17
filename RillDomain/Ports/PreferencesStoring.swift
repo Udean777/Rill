@@ -43,6 +43,18 @@ public struct Preferences: Sendable, Equatable {
     public var webSearchEnabled: Bool
     /// Bundle identifier of the browser used to open web URLs, or `nil` for the system default.
     public var defaultBrowserBundleID: String?
+    /// Whether the floating Applications grid launcher is enabled.
+    public var applicationsLauncherEnabled: Bool
+    /// Whether the 4-finger trackpad pinch gesture toggles the Applications grid.
+    public var applicationsPinchGestureEnabled: Bool
+    /// Pinch sensitivity ratio (`0.10...0.45`). Lower values trigger more easily.
+    public var applicationsPinchSensitivity: Double
+    /// Global hotkey to toggle the Applications grid launcher.
+    public var applicationsHotkey: Hotkey
+    /// Number of columns in the Applications grid.
+    public var applicationsGridColumns: Int
+    /// Number of rows per page in the Applications grid.
+    public var applicationsGridRows: Int
     /// Sections the user chose to hide from the palette. Store what is hidden,
     /// not what is visible, so a section added later shows up by default.
     public var hiddenSections: Set<Section>
@@ -70,6 +82,12 @@ public struct Preferences: Sendable, Equatable {
         calculatorEnabled: Bool = true,
         webSearchEnabled: Bool = true,
         defaultBrowserBundleID: String? = nil,
+        applicationsLauncherEnabled: Bool = true,
+        applicationsPinchGestureEnabled: Bool = true,
+        applicationsPinchSensitivity: Double = 0.22,
+        applicationsHotkey: Hotkey = Hotkey(keyCode: 0, modifiers: [.option]),
+        applicationsGridColumns: Int = 7,
+        applicationsGridRows: Int = 5,
         hiddenSections: Set<Section> = []
     ) {
         self.hotkey = hotkey
@@ -94,6 +112,12 @@ public struct Preferences: Sendable, Equatable {
         self.calculatorEnabled = calculatorEnabled
         self.webSearchEnabled = webSearchEnabled
         self.defaultBrowserBundleID = defaultBrowserBundleID
+        self.applicationsLauncherEnabled = applicationsLauncherEnabled
+        self.applicationsPinchGestureEnabled = applicationsPinchGestureEnabled
+        self.applicationsPinchSensitivity = applicationsPinchSensitivity
+        self.applicationsHotkey = applicationsHotkey
+        self.applicationsGridColumns = applicationsGridColumns
+        self.applicationsGridRows = applicationsGridRows
         self.hiddenSections = hiddenSections
     }
 
@@ -108,6 +132,12 @@ public struct Preferences: Sendable, Equatable {
     /// The only history limits the Settings UI offers.
     public static let clipboardHistoryLimitChoices = [100, 250, 500, 1000]
 
+    /// Column counts offered for the Applications grid.
+    public static let applicationsGridColumnChoices = [5, 6, 7, 8]
+
+    /// Row counts offered for the Applications grid.
+    public static let applicationsGridRowChoices = [4, 5, 6]
+
     /// Replaces out-of-range stored values with defaults, so a corrupt
     /// `UserDefaults` entry cannot break the layout.
     public func sanitized() -> Preferences {
@@ -120,6 +150,15 @@ public struct Preferences: Sendable, Equatable {
         }
         if !Self.clipboardHistoryLimitChoices.contains(clipboardHistoryLimit) {
             copy.clipboardHistoryLimit = Self.default.clipboardHistoryLimit
+        }
+        if !Self.applicationsGridColumnChoices.contains(applicationsGridColumns) {
+            copy.applicationsGridColumns = Self.default.applicationsGridColumns
+        }
+        if !Self.applicationsGridRowChoices.contains(applicationsGridRows) {
+            copy.applicationsGridRows = Self.default.applicationsGridRows
+        }
+        if !(0.10...0.45).contains(applicationsPinchSensitivity) {
+            copy.applicationsPinchSensitivity = Self.default.applicationsPinchSensitivity
         }
         return copy
     }

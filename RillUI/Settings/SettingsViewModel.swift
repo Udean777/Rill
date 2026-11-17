@@ -19,6 +19,10 @@ public struct SettingsActions {
     public var requestProtectedFolderAccess: (() async -> Void)?
     public var revealApplicationInFinder: (() -> Void)?
     public var getInstalledBrowsers: (() -> [BrowserOption])?
+    public var onApplicationsHotkeyChanged: ((Hotkey) async -> Bool)?
+    public var onResetApplicationsLayout: (() async -> Void)?
+    public var openTrackpadSettings: (() -> Void)?
+    public var checkSystemFourFingerPinchDisabled: (() -> Bool)?
 
     public init(
         onHotkeyChanged: ((Hotkey) async -> Bool)? = nil,
@@ -36,7 +40,11 @@ public struct SettingsActions {
         openFullDiskAccessSettings: (() async -> Void)? = nil,
         requestProtectedFolderAccess: (() async -> Void)? = nil,
         revealApplicationInFinder: (() -> Void)? = nil,
-        getInstalledBrowsers: (() -> [BrowserOption])? = nil
+        getInstalledBrowsers: (() -> [BrowserOption])? = nil,
+        onApplicationsHotkeyChanged: ((Hotkey) async -> Bool)? = nil,
+        onResetApplicationsLayout: (() async -> Void)? = nil,
+        openTrackpadSettings: (() -> Void)? = nil,
+        checkSystemFourFingerPinchDisabled: (() -> Bool)? = nil
     ) {
         self.onHotkeyChanged = onHotkeyChanged
         self.onClipboardHotkeyChanged = onClipboardHotkeyChanged
@@ -54,6 +62,10 @@ public struct SettingsActions {
         self.requestProtectedFolderAccess = requestProtectedFolderAccess
         self.revealApplicationInFinder = revealApplicationInFinder
         self.getInstalledBrowsers = getInstalledBrowsers
+        self.onApplicationsHotkeyChanged = onApplicationsHotkeyChanged
+        self.onResetApplicationsLayout = onResetApplicationsLayout
+        self.openTrackpadSettings = openTrackpadSettings
+        self.checkSystemFourFingerPinchDisabled = checkSystemFourFingerPinchDisabled
     }
 }
 
@@ -72,6 +84,9 @@ public final class SettingsViewModel {
     public var isHotkeyRegistered = true
     public var clipboardHotkeyError: String?
     public var isClipboardHotkeyRegistered = true
+    public var applicationsHotkeyError: String?
+    public var isApplicationsHotkeyRegistered = true
+    public var isSystemFourFingerPinchDisabled = false
     public var updateState: UpdateState = .idle
     public var availableBrowsers: [BrowserOption] = []
 
@@ -110,6 +125,13 @@ public final class SettingsViewModel {
         }
         if let getInstalledBrowsers = actions.getInstalledBrowsers {
             availableBrowsers = getInstalledBrowsers()
+        }
+        if let checkSystemFourFingerPinchDisabled = actions.checkSystemFourFingerPinchDisabled {
+            let disabled = checkSystemFourFingerPinchDisabled()
+            if disabled != isSystemFourFingerPinchDisabled {
+                isSystemFourFingerPinchDisabled = disabled
+                actions.onPreferencesChanged?(preferences)
+            }
         }
     }
 
@@ -190,6 +212,28 @@ public final class SettingsViewModel {
             conflictMessage: String(localized: "This shortcut is in use by another application."),
             register: actions.onClipboardHotkeyChanged
         )
+    }
+
+    public func updateApplicationsHotkey(_ newHotkey: Hotkey) async {
+        guard newHotkey != preferences.applicationsHotkey else { return }
+        await applyHotkey(
+            newHotkey,
+            keyPath: \.applicationsHotkey,
+            registeredKeyPath: \.isApplicationsHotkeyRegistered,
+            errorKeyPath: \.applicationsHotkeyError,
+            conflictMessage: String(localized: "This shortcut is in use by another application."),
+            register: actions.onApplicationsHotkeyChanged
+        )
+    }
+
+    public func resetApplicationsLayoutAction() {
+        Task {
+            await actions.onResetApplicationsLayout?()
+        }
+    }
+
+    public func openTrackpadMoreGesturesSettings() {
+        actions.openTrackpadSettings?()
     }
 
     private func applyHotkey(
