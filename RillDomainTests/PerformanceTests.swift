@@ -112,4 +112,77 @@ struct PerformanceTests {
 
         #expect(elapsed < microsecondBudget)
     }
+
+    @Test func `search with 1500 system settings and 2000 apps stays under 50ms budget`() async throws {
+        let settingsURL = try #require(
+            URL(string: "x-apple.systempreferences:com.apple.Wallpaper-Settings.extension")
+        )
+        let apps = (0..<2000).map { index in
+            SearchResult(
+                id: .init(source: "application", raw: "app-\(index)"),
+                title: "Application \(index)",
+                icon: .systemSymbol("app"),
+                section: .applications,
+                kind: .application,
+                primaryAction: .openApplication(bundleID: "com.test.app\(index)")
+            )
+        }
+        let settings = (0..<1500).map { index in
+            SearchResult(
+                id: .init(source: "system-settings", raw: "setting-\(index)"),
+                title: index == 42 ? "Change the wallpaper" : "Setting Option \(index)",
+                subtitle: "System Settings › Wallpaper",
+                icon: .systemSymbol("gearshape"),
+                section: .systemSettings,
+                kind: .systemSettings,
+                primaryAction: .openURL(settingsURL)
+            )
+        }
+        let useCase = SearchUseCase(
+            commands: PerfCommands(),
+            applications: PerfApplications(apps: apps),
+            usage: PerfUsage(),
+            clock: PerfClock(),
+            systemSettings: PerfSystemSettings(items: settings)
+        )
+
+        let clock = ContinuousClock()
+        var lastCount = 0
+        let elapsed = await clock.measure {
+            for raw in ["s", "se", "wallpaper"] {
+                let sections = await useCase(SearchQuery(raw: raw))
+                lastCount = sections.first { $0.section == .systemSettings }?.results.count ?? 0
+            }
+        }
+
+        #expect(lastCount <= 15)
+        #expect(elapsed < latencyBudget)
+    }
+}
+
+private struct PerfCommands: CommandProviding {
+    var commands: [SearchResult] { [] }
+}
+
+private struct PerfApplications: ApplicationCataloguing {
+    let apps: [SearchResult]
+    func applications() async -> [SearchResult] { apps }
+}
+
+private struct PerfSystemSettings: SystemSettingsProviding {
+    let items: [SearchResult]
+    func settings() async -> [SearchResult] { items }
+}
+
+private struct PerfUsage: UsageStoring {
+    func snapshot() async -> UsageSnapshot { .empty }
+    func record(_ id: SearchResult.ID, at date: Date) async {}
+    func pinned() async -> [PinnedResult] { [] }
+    func setPinned(_ result: SearchResult, isPinned: Bool, at date: Date) async {}
+    func clearPins() async {}
+    func reset() async {}
+}
+
+private struct PerfClock: RillDomain.Clock {
+    var now: Date { Date(timeIntervalSince1970: 0) }
 }

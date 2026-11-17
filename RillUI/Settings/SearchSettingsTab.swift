@@ -121,6 +121,24 @@ struct SearchSettingsTab: View {
                     isOn: viewModel.binding(for: \.webSearchEnabled)
                 )
 
+                if viewModel.preferences.webSearchEnabled {
+                    SettingsCardDivider()
+
+                    HStack {
+                        Text("Default browser")
+                            .font(.system(size: 13))
+                        Spacer()
+                        Picker("", selection: viewModel.binding(for: \.defaultBrowserBundleID)) {
+                            Text("System Default").tag(Optional<String>.none)
+                            ForEach(viewModel.availableBrowsers) { browser in
+                                Text(browser.name).tag(browser.bundleID)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 180)
+                    }
+                }
+
                 Text("Sections you switch off never appear in the palette, even on an empty search field.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)

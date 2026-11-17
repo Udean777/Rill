@@ -92,26 +92,24 @@ public struct PaletteView: View {
                     ScrollView {
                         LazyVStack(spacing: 1) {
                             ForEach(visibleSections) { ranked in
-                                VStack(spacing: 1) {
-                                    Section {
-                                        ForEach(ranked.results) { result in
-                                            ResultRow(
-                                                result: result,
-                                                shortcutNumber: viewModel.shortcutNumber(for: result.id),
-                                                isSelected: viewModel.selectedResultID == result.id,
-                                                isPinned: result.section == .favorites,
-                                                action: { viewModel.selectAndActivate(result) },
-                                                onTogglePin: { viewModel.togglePin(result) }
-                                            )
-                                            .id(result.id)
-                                        }
-                                    } header: {
-                                        SectionHeader(section: ranked.section)
+                                Section {
+                                    ForEach(ranked.results) { result in
+                                        ResultRow(
+                                            result: result,
+                                            shortcutNumber: viewModel.shortcutNumber(for: result.id),
+                                            isSelected: viewModel.selectedResultID == result.id,
+                                            isPinned: result.section == .favorites,
+                                            action: { viewModel.selectAndActivate(result) },
+                                            onTogglePin: { viewModel.togglePin(result) }
+                                        )
+                                        .id(result.id)
                                     }
+                                } header: {
+                                    SectionHeader(section: ranked.section)
+                                }
 
-                                    if ranked.section == .applications, viewModel.hasMultipleApplicationPages {
-                                        pager
-                                    }
+                                if ranked.section == .applications, viewModel.hasMultipleApplicationPages {
+                                    pager
                                 }
                             }
                         }

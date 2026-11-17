@@ -18,6 +18,7 @@ public struct SettingsActions {
     public var openFullDiskAccessSettings: (() async -> Void)?
     public var requestProtectedFolderAccess: (() async -> Void)?
     public var revealApplicationInFinder: (() -> Void)?
+    public var getInstalledBrowsers: (() -> [BrowserOption])?
 
     public init(
         onHotkeyChanged: ((Hotkey) async -> Bool)? = nil,
@@ -34,7 +35,8 @@ public struct SettingsActions {
         checkFullDiskAccess: (() -> Bool)? = nil,
         openFullDiskAccessSettings: (() async -> Void)? = nil,
         requestProtectedFolderAccess: (() async -> Void)? = nil,
-        revealApplicationInFinder: (() -> Void)? = nil
+        revealApplicationInFinder: (() -> Void)? = nil,
+        getInstalledBrowsers: (() -> [BrowserOption])? = nil
     ) {
         self.onHotkeyChanged = onHotkeyChanged
         self.onClipboardHotkeyChanged = onClipboardHotkeyChanged
@@ -51,6 +53,7 @@ public struct SettingsActions {
         self.openFullDiskAccessSettings = openFullDiskAccessSettings
         self.requestProtectedFolderAccess = requestProtectedFolderAccess
         self.revealApplicationInFinder = revealApplicationInFinder
+        self.getInstalledBrowsers = getInstalledBrowsers
     }
 }
 
@@ -70,6 +73,7 @@ public final class SettingsViewModel {
     public var clipboardHotkeyError: String?
     public var isClipboardHotkeyRegistered = true
     public var updateState: UpdateState = .idle
+    public var availableBrowsers: [BrowserOption] = []
 
     private let preferencesStore: PreferencesStoring
     private let actions: SettingsActions
@@ -103,6 +107,9 @@ public final class SettingsViewModel {
         }
         if let getLaunchAtLogin = actions.getLaunchAtLogin {
             isLaunchAtLoginEnabled = getLaunchAtLogin()
+        }
+        if let getInstalledBrowsers = actions.getInstalledBrowsers {
+            availableBrowsers = getInstalledBrowsers()
         }
     }
 

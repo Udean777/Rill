@@ -29,6 +29,7 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
         static let currencyConversionEnabled = "preferences.currency.enabled"
         static let calculatorEnabled = "preferences.calculator.enabled"
         static let webSearchEnabled = "preferences.webSearch.enabled"
+        static let defaultBrowserBundleID = "preferences.webSearch.defaultBrowserBundleID"
         static let hiddenSections = "preferences.sections.hidden"
     }
 
@@ -73,9 +74,11 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
             currencyConversionEnabled: value(forKey: Key.currencyConversionEnabled, default: defaults.currencyConversionEnabled),
             calculatorEnabled: value(forKey: Key.calculatorEnabled, default: defaults.calculatorEnabled),
             webSearchEnabled: value(forKey: Key.webSearchEnabled, default: defaults.webSearchEnabled),
+            defaultBrowserBundleID: userDefaults.string(forKey: Key.defaultBrowserBundleID),
             hiddenSections: Set(
                 (userDefaults.stringArray(forKey: Key.hiddenSections) ?? [])
                     .compactMap(Section.init(rawValue:))
+                    .filter { $0 != .fallback }
             )
         ).sanitized()
     }
@@ -115,6 +118,11 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
         userDefaults.set(preferences.currencyConversionEnabled, forKey: Key.currencyConversionEnabled)
         userDefaults.set(preferences.calculatorEnabled, forKey: Key.calculatorEnabled)
         userDefaults.set(preferences.webSearchEnabled, forKey: Key.webSearchEnabled)
+        if let bundleID = preferences.defaultBrowserBundleID, !bundleID.isEmpty {
+            userDefaults.set(bundleID, forKey: Key.defaultBrowserBundleID)
+        } else {
+            userDefaults.removeObject(forKey: Key.defaultBrowserBundleID)
+        }
         userDefaults.set(
             preferences.hiddenSections.map(\.rawValue).sorted(),
             forKey: Key.hiddenSections

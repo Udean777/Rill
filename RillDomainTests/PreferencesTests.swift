@@ -30,6 +30,7 @@ struct PreferencesTests {
         #expect(prefs.statusBarEnabled == true)
         #expect(prefs.showKeyboardHints == true)
         #expect(prefs.hasCompletedOnboarding == false)
+        #expect(prefs.defaultBrowserBundleID == nil)
     }
 
     @Test func `every section is visible by default`() {

@@ -78,6 +78,7 @@ public struct SearchUseCase: Sendable {
             let fileOptions = FileSearchOptions(preferences: currentPreferences)
 
             async let fetchedApps = applications.applications()
+            async let fetchedSystemSettings = systemSettings?.settings() ?? []
             async let fetchedFiles: [SearchResult] = {
                 guard filesAllowed, let files else { return [] }
                 return await files.search(query: query, options: fileOptions)
@@ -87,8 +88,8 @@ public struct SearchUseCase: Sendable {
                 enabled: currentPreferences.currencyConversionEnabled
             )
 
-            let (allApplications, fileResults, currencyResult) = await (
-                fetchedApps, fetchedFiles, conversion
+            let (allApplications, allSystemSettings, fileResults, currencyResult) = await (
+                fetchedApps, fetchedSystemSettings, fetchedFiles, conversion
             )
 
             // Pinned results only join a typed query when they match it.
@@ -104,16 +105,25 @@ public struct SearchUseCase: Sendable {
                     && MatchScore.score(title: result.title, query: query) > 0
             }
 
-            // System Settings panes join a typed query only; the root layout
-            // stays uncluttered (design.md §4.4).
-            let matchingSystemSettings = (systemSettings?.settings ?? []).filter { result in
-                MatchScore.score(title: result.title, query: query) > 0
-            }
+            // System Settings panes join a typed query only; cap to top matches
+            // so short queries never flood the palette with hundreds of rows.
+            let matchingSystemSettings = allSystemSettings
+                .compactMap { result -> (result: SearchResult, score: Double)? in
+                    let score = MatchScore.bestScore(for: result, query: query)
+                    return score > 0 ? (result, score) : nil
+                }
+                .sorted { lhs, rhs in
+                    if lhs.score != rhs.score { return lhs.score > rhs.score }
+                    return lhs.result.title.count < rhs.result.title.count
+                }
+                .prefix(Self.systemSettingsLimit)
+                .map(\.result)
 
             var fallbacks = fallbackResults(
                 for: query,
                 calculatorEnabled: currentPreferences.calculatorEnabled,
-                webSearchEnabled: currentPreferences.webSearchEnabled
+                webSearchEnabled: currentPreferences.webSearchEnabled,
+                defaultBrowserBundleID: currentPreferences.defaultBrowserBundleID
             )
             if let currencyResult {
                 fallbacks.append(currencyResult)
@@ -200,6 +210,7 @@ public struct SearchUseCase: Sendable {
     }
 
     private static let suggestionLimit = 5
+    private static let systemSettingsLimit = 15
 
     /// Converts a currency amount in the query to the user's local currency.
     ///
@@ -245,7 +256,8 @@ public struct SearchUseCase: Sendable {
     private func fallbackResults(
         for query: SearchQuery,
         calculatorEnabled: Bool,
-        webSearchEnabled: Bool
+        webSearchEnabled: Bool,
+        defaultBrowserBundleID: String?
     ) -> [SearchResult] {
         var fallbacks: [SearchResult] = []
         let raw = query.raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -259,7 +271,7 @@ public struct SearchUseCase: Sendable {
                     title: formatted,
                     subtitle: "= \(raw)",
                     icon: .systemSymbol("equal.circle"),
-                    section: .fallback,
+                    section: .calculator,
                     kind: .calculation,
                     primaryAction: .copyToPasteboard(formatted),
                     baseScore: 1.0
@@ -267,23 +279,53 @@ public struct SearchUseCase: Sendable {
             )
         }
 
-        if webSearchEnabled,
-           let encoded = raw.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-           let url = URL(string: "https://www.google.com/search?q=\(encoded)") {
-            fallbacks.append(
-                SearchResult(
-                    id: .init(source: "web", raw: raw),
-                    title: "Search Google for \"\(raw)\"",
-                    subtitle: "Open in default browser",
-                    icon: .systemSymbol("globe"),
-                    section: .fallback,
-                    kind: .web,
-                    primaryAction: .openURL(url),
-                    baseScore: 0.1
+        if webSearchEnabled {
+            if let directURL = WebURLParser.parse(raw) {
+                fallbacks.append(
+                    SearchResult(
+                        id: .init(source: "web-url", raw: directURL.absoluteString),
+                        title: "Open \(directURL.host ?? raw)",
+                        subtitle: "Open in Browser",
+                        icon: .systemSymbol("safari"),
+                        section: .fallback,
+                        kind: .web,
+                        primaryAction: .openWebURL(
+                            directURL,
+                            browserBundleID: defaultBrowserBundleID
+                        ),
+                        baseScore: 0.95
+                    )
                 )
-            )
+            }
+
+            if let searchURL = googleSearchURL(for: raw) {
+                fallbacks.append(
+                    SearchResult(
+                        id: .init(source: "web", raw: raw),
+                        title: "Search Google for \"\(raw)\"",
+                        subtitle: "Open in browser",
+                        icon: .systemSymbol("globe"),
+                        section: .fallback,
+                        kind: .web,
+                        primaryAction: .openWebURL(
+                            searchURL,
+                            browserBundleID: defaultBrowserBundleID
+                        ),
+                        baseScore: 0.1
+                    )
+                )
+            }
         }
 
         return fallbacks
+    }
+
+    private func googleSearchURL(for query: String) -> URL? {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "www.google.com"
+        components.path = "/search"
+        components.queryItems = [URLQueryItem(name: "q", value: query)]
+        return components.url
     }
 }

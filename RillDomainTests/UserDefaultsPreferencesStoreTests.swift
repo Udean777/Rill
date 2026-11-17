@@ -36,6 +36,17 @@ struct UserDefaultsPreferencesStoreTests {
         #expect(loaded.hiddenSections == [.files])
     }
 
+    @Test func `stale fallback entry in hidden sections is ignored`() async throws {
+        let suite = makeSuiteName()
+        defer { clearSuite(suite) }
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.set(["files", "fallback"], forKey: "preferences.sections.hidden")
+
+        let loaded = await UserDefaultsPreferencesStore(userDefaults: defaults).load()
+
+        #expect(loaded.hiddenSections == [.files])
+    }
+
     @Test func `expanded search preferences survive a save and load roundtrip`() async throws {
         let suite = makeSuiteName()
         defer { clearSuite(suite) }
@@ -49,7 +60,8 @@ struct UserDefaultsPreferencesStoreTests {
             fileSearchCustomPaths: ["/Users/test/Projects"],
             fileSearchExcludedPaths: ["/Users/test/Projects/node_modules"],
             calculatorEnabled: false,
-            webSearchEnabled: false
+            webSearchEnabled: false,
+            defaultBrowserBundleID: "com.google.Chrome"
         )
         await store.save(saved)
         let loaded = await store.load()
@@ -62,6 +74,11 @@ struct UserDefaultsPreferencesStoreTests {
         #expect(loaded.fileSearchExcludedPaths == ["/Users/test/Projects/node_modules"])
         #expect(!loaded.calculatorEnabled)
         #expect(!loaded.webSearchEnabled)
+        #expect(loaded.defaultBrowserBundleID == "com.google.Chrome")
+
+        await store.save(Preferences(defaultBrowserBundleID: nil))
+        let resetBrowser = await store.load()
+        #expect(resetBrowser.defaultBrowserBundleID == nil)
     }
 
     private func makeSuiteName() -> String {

@@ -178,6 +178,9 @@ final class AppEnvironment {
             },
             revealApplicationInFinder: {
                 SystemActionPerformer.revealApplicationInFinder()
+            },
+            getInstalledBrowsers: {
+                SystemActionPerformer.installedBrowsers()
             }
         )
         let settingsViewModel = SettingsViewModel(

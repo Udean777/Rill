@@ -338,7 +338,7 @@ struct SearchUseCaseTests {
         #expect(!sections.contains(where: { $0.section == .applications }))
     }
 
-    @Test func `fallback contains calculation and web search when applicable`() async {
+    @Test func `calculation appears in leading calculator section above fallback`() async {
         let useCase = makeUseCase(
             commands: [],
             applications: []
@@ -346,12 +346,43 @@ struct SearchUseCaseTests {
 
         let sections = await useCase(SearchQuery(raw: "12 * 4"))
 
-        #expect(sections.map(\.section) == [.fallback])
-        let fallbackResults = sections.first?.results ?? []
-        #expect(fallbackResults.count == 2)
-        #expect(fallbackResults[0].kind == .calculation)
-        #expect(fallbackResults[0].title == "48")
-        #expect(fallbackResults[1].kind == .web)
+        #expect(sections.map(\.section) == [.calculator, .fallback])
+        #expect(sections[0].results.first?.kind == .calculation)
+        #expect(sections[0].results.first?.title == "48")
+        #expect(sections[1].results.first?.kind == .web)
+    }
+
+    @Test func `direct domain and natural language queries always offer web results`() async throws {
+        let useCase = makeUseCase(commands: [], applications: [])
+
+        let domainSections = await useCase(SearchQuery(raw: "sajudin.my.id"))
+        let domainFallback = try #require(domainSections.first { $0.section == .fallback })
+        #expect(domainFallback.results.first?.title == "Open sajudin.my.id")
+
+        let questionSections = await useCase(SearchQuery(raw: "Apa itu hydrogen"))
+        let questionFallback = try #require(questionSections.first { $0.section == .fallback })
+        #expect(questionFallback.results.first?.title == "Search Google for \"Apa itu hydrogen\"")
+    }
+
+    @Test func `direct domain query offers open in browser with configured default browser`() async throws {
+        let useCase = makeUseCase(
+            commands: [],
+            applications: [],
+            preferences: { Preferences(defaultBrowserBundleID: "com.google.Chrome") }
+        )
+
+        let sections = await useCase(SearchQuery(raw: "github.com"))
+
+        let fallback = try #require(sections.first { $0.section == .fallback })
+        let direct = try #require(fallback.results.first)
+        #expect(direct.title == "Open github.com")
+        #expect(
+            direct.primaryAction
+                == .openWebURL(
+                    try #require(URL(string: "https://github.com")),
+                    browserBundleID: "com.google.Chrome"
+                )
+        )
     }
 
     @Test func `hiding every section leaves an empty layout`() async {

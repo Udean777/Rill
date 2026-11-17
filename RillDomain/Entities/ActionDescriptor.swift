@@ -9,6 +9,10 @@ public enum ActionDescriptor: Sendable, Hashable {
     /// Opens a URL in the user's default handler.
     case openURL(URL)
 
+    /// Opens a web URL in the specified browser bundle identifier, or the
+    /// macOS system default browser when `browserBundleID` is `nil`.
+    case openWebURL(URL, browserBundleID: String?)
+
     /// Opens a file or folder in its default application.
     case openFile(URL)
 

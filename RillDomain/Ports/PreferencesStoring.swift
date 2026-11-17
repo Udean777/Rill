@@ -41,6 +41,8 @@ public struct Preferences: Sendable, Equatable {
     public var calculatorEnabled: Bool
     /// Whether the web search fallback row appears for typed queries.
     public var webSearchEnabled: Bool
+    /// Bundle identifier of the browser used to open web URLs, or `nil` for the system default.
+    public var defaultBrowserBundleID: String?
     /// Sections the user chose to hide from the palette. Store what is hidden,
     /// not what is visible, so a section added later shows up by default.
     public var hiddenSections: Set<Section>
@@ -67,6 +69,7 @@ public struct Preferences: Sendable, Equatable {
         currencyConversionEnabled: Bool = true,
         calculatorEnabled: Bool = true,
         webSearchEnabled: Bool = true,
+        defaultBrowserBundleID: String? = nil,
         hiddenSections: Set<Section> = []
     ) {
         self.hotkey = hotkey
@@ -90,6 +93,7 @@ public struct Preferences: Sendable, Equatable {
         self.currencyConversionEnabled = currencyConversionEnabled
         self.calculatorEnabled = calculatorEnabled
         self.webSearchEnabled = webSearchEnabled
+        self.defaultBrowserBundleID = defaultBrowserBundleID
         self.hiddenSections = hiddenSections
     }
 
@@ -126,6 +130,19 @@ public enum FileSearchScope: String, Sendable, CaseIterable {
     case homeDirectory
     case computer
     case custom
+}
+
+/// An installed web browser that can be selected as Rill's default browser.
+public struct BrowserOption: Sendable, Equatable, Hashable, Identifiable {
+    public let id: String
+    public let name: String
+    public let bundleID: String?
+
+    public init(name: String, bundleID: String?) {
+        self.id = bundleID ?? "system-default"
+        self.name = name
+        self.bundleID = bundleID
+    }
 }
 
 /// Port for reading and writing user preferences across application launches.

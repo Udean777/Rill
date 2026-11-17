@@ -9,15 +9,31 @@ public enum ExpressionEvaluator {
     }
 
     public static func evaluate(_ expression: String) -> Double? {
-        let trimmed = expression.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        var normalized = expression.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+
+        // Allow optional leading or trailing '=' (e.g. "= 2 + 2" or "2 + 2 =").
+        if normalized.hasPrefix("=") {
+            normalized = String(normalized.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if normalized.hasSuffix("=") {
+            normalized = String(normalized.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !normalized.isEmpty else { return nil }
+
+        // Normalize natural multiplication/division symbols and thousands commas.
+        normalized = normalized
+            .replacingOccurrences(of: "×", with: "*")
+            .replacingOccurrences(of: "÷", with: "/")
+            .replacingOccurrences(of: #"(?<=[\d\)])\s*[xX]\s*(?=[\d\(+-])"#, with: "*", options: .regularExpression)
+            .replacingOccurrences(of: #"(?<=\d),(?=\d)"#, with: "", options: .regularExpression)
 
         // Must contain at least one arithmetic operator to be considered a calculation,
         // preventing single numbers or plain words from triggering calculation results.
         let operators: Set<Character> = ["+", "-", "*", "/", "%", "^"]
-        guard trimmed.contains(where: { operators.contains($0) }) else { return nil }
+        guard normalized.contains(where: { operators.contains($0) }) else { return nil }
 
-        var parser = Parser(text: trimmed)
+        var parser = Parser(text: normalized)
         do {
             let result = try parser.parseExpression()
             guard parser.isAtEnd() else { return nil }
@@ -29,14 +45,18 @@ public enum ExpressionEvaluator {
     }
 
     public static func formatResult(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSeparator = ","
+        formatter.decimalSeparator = "."
+        formatter.minimumFractionDigits = 0
         if value.rounded() == value && abs(value) < 1e15 {
-            return String(Int64(value))
+            formatter.maximumFractionDigits = 0
+            return formatter.string(from: NSNumber(value: Int64(value))) ?? String(Int64(value))
         } else {
-            let formatter = NumberFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.maximumFractionDigits = 8
-            formatter.minimumFractionDigits = 0
-            formatter.numberStyle = .decimal
             return formatter.string(from: NSNumber(value: value)) ?? String(value)
         }
     }

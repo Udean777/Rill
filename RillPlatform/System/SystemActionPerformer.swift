@@ -14,6 +14,9 @@ public final class SystemActionPerformer: ActionPerforming {
         case .openURL(let url), .openFile(let url):
             try await Self.open(url)
 
+        case .openWebURL(let url, let browserBundleID):
+            try await Self.openWebURL(url, browserBundleID: browserBundleID)
+
         case .copyToPasteboard(let text):
             await MainActor.run {
                 let pasteboard = NSPasteboard.general
@@ -70,6 +73,45 @@ public final class SystemActionPerformer: ActionPerforming {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         _ = try await NSWorkspace.shared.open(url, configuration: configuration)
+    }
+
+    private static func openWebURL(_ url: URL, browserBundleID: String?) async throws {
+        guard let browserBundleID,
+              !browserBundleID.isEmpty,
+              let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: browserBundleID) else {
+            try await open(url)
+            return
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        _ = try await NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration)
+    }
+
+    @MainActor
+    public static func installedBrowsers() -> [BrowserOption] {
+        guard let probeURL = URL(string: "https://example.com") else {
+            return []
+        }
+        let appURLs = NSWorkspace.shared.urlsForApplications(toOpen: probeURL)
+        var seenBundleIDs = Set<String>()
+        var options: [BrowserOption] = []
+
+        for appURL in appURLs {
+            let bundle = Bundle(url: appURL)
+            guard let bundleID = bundle?.bundleIdentifier,
+                  seenBundleIDs.insert(bundleID).inserted else {
+                continue
+            }
+            let name =
+                bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+                ?? bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String
+                ?? appURL.deletingPathExtension().lastPathComponent
+            options.append(BrowserOption(name: name, bundleID: bundleID))
+        }
+
+        return options.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
     }
 
     @MainActor
