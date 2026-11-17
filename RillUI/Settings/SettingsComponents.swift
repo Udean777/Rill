@@ -1,17 +1,6 @@
 import RillDomain
 import SwiftUI
 
-extension SettingsViewModel {
-    func binding<Value: Equatable>(
-        for keyPath: WritableKeyPath<Preferences, Value>
-    ) -> Binding<Value> {
-        Binding(
-            get: { self.preferences[keyPath: keyPath] },
-            set: { self.update(keyPath, to: $0) }
-        )
-    }
-}
-
 struct SettingsCard<Content: View>: View {
     let title: LocalizedStringKey
     @ViewBuilder let content: () -> Content
@@ -149,26 +138,26 @@ struct PermissionsCardContent: View {
                 PermissionStatusRow(
                     title: "Full Disk Access",
                     subtitle: "Prevents Desktop, Downloads & Documents popups when previewing clipboard files.",
-                    isGranted: viewModel.isFullDiskAccessGranted,
+                    isGranted: viewModel.permissions.isFullDiskAccessGranted,
                     actionTitle: "Open Settings",
-                    action: { viewModel.openFullDiskAccessSettings() }
+                    action: { viewModel.permissions.openFullDiskAccessSettings() }
                 )
 
-                if !viewModel.isFullDiskAccessGranted {
+                if !viewModel.permissions.isFullDiskAccessGranted {
                     HStack(spacing: 8) {
                         Text("If Rill is not listed, click Reveal App and drag Rill.app into Full Disk Access.")
                             .font(.system(size: 10.5))
                             .foregroundStyle(.secondary)
                         Spacer()
                         Button("Reveal App") {
-                            viewModel.revealApplicationInFinder()
+                            viewModel.permissions.revealApplicationInFinder()
                         }
                         .controlSize(.mini)
                     }
                 }
             }
 
-            if !viewModel.isFullDiskAccessGranted {
+            if !viewModel.permissions.isFullDiskAccessGranted {
                 SettingsCardDivider()
 
                 HStack(alignment: .center, spacing: 12) {
@@ -183,11 +172,11 @@ struct PermissionsCardContent: View {
 
                     Spacer(minLength: 8)
 
-                    Button(viewModel.isRequestingFolderAccess ? "Requesting…" : "Grant Folders") {
-                        viewModel.requestProtectedFolderAccess()
+                    Button(viewModel.permissions.isRequestingFolderAccess ? "Requesting…" : "Grant Folders") {
+                        viewModel.permissions.requestProtectedFolderAccess()
                     }
                     .controlSize(.small)
-                    .disabled(viewModel.isRequestingFolderAccess)
+                    .disabled(viewModel.permissions.isRequestingFolderAccess)
                 }
             }
 
@@ -196,22 +185,16 @@ struct PermissionsCardContent: View {
             PermissionStatusRow(
                 title: "Accessibility",
                 subtitle: "Enables direct ⌘V paste into the active application.",
-                isGranted: viewModel.isAccessibilityGranted,
+                isGranted: viewModel.permissions.isAccessibilityGranted,
                 actionTitle: "Open Settings",
-                action: { viewModel.openAccessibilitySettings() }
+                action: { viewModel.permissions.openAccessibilitySettings() }
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            viewModel.refreshStatus()
+            viewModel.refreshStatusAndReapplyPreferences()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
-            viewModel.refreshStatus()
-        }
-        .task {
-            while !Task.isCancelled {
-                viewModel.refreshStatus()
-                try? await Task.sleep(for: .seconds(1))
-            }
+            viewModel.refreshStatusAndReapplyPreferences()
         }
     }
 }

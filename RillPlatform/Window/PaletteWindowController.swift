@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import os
 import RillDomain
 import RillUI
@@ -132,14 +133,15 @@ public final class PaletteWindowController {
 
     /// - Returns: `true` when the event was consumed.
     private func handleKeyDown(_ event: NSEvent) -> Bool {
-        switch event.keyCode {
-        case 53:  // Esc
+        let key = Int(event.keyCode)
+        switch key {
+        case kVK_Escape:
             if viewModel.handleEscape() {
                 hide()
             }
             return true
 
-        case 36, 76:  // Return, keypad Enter
+        case kVK_Return, kVK_ANSI_KeypadEnter:
             if event.modifierFlags.contains(.option) {
                 viewModel.activateSelectedAlternate()
             } else {
@@ -147,38 +149,38 @@ public final class PaletteWindowController {
             }
             return true
 
-        case 126:  // Up
+        case kVK_UpArrow:
             viewModel.moveSelection(by: -1)
             return true
 
-        case 125:  // Down
+        case kVK_DownArrow:
             viewModel.moveSelection(by: 1)
             return true
 
-        case 123:  // Left arrow
+        case kVK_LeftArrow:
             if viewModel.hasMultipleApplicationPages && viewModel.query.isEmpty {
                 viewModel.changeApplicationsPage(by: -1)
                 return true
             }
 
-        case 124:  // Right arrow
+        case kVK_RightArrow:
             if viewModel.hasMultipleApplicationPages && viewModel.query.isEmpty {
                 viewModel.changeApplicationsPage(by: 1)
                 return true
             }
 
-        case 48:  // Tab
+        case kVK_Tab:
             viewModel.moveSelection(by: event.modifierFlags.contains(.shift) ? -1 : 1)
             return true
 
-        case 35, 45:  // ⌃P / ⌃N
+        case kVK_ANSI_P, kVK_ANSI_N:
             if event.modifierFlags.contains(.control) {
-                viewModel.moveSelection(by: event.keyCode == 35 ? -1 : 1)
+                viewModel.moveSelection(by: key == kVK_ANSI_P ? -1 : 1)
                 return true
             }
 
-        case 116, 121:  // Page Up / Page Down
-            viewModel.changeApplicationsPage(by: event.keyCode == 116 ? -1 : 1)
+        case kVK_PageUp, kVK_PageDown:
+            viewModel.changeApplicationsPage(by: key == kVK_PageUp ? -1 : 1)
             return true
 
         default:
@@ -200,13 +202,12 @@ public final class PaletteWindowController {
             return true
         }
 
-        if event.modifierFlags.contains(.command),
-           event.charactersIgnoringModifiers?.lowercased() == "p" || event.keyCode == 35 {
+        if event.modifierFlags.contains(.command), key == kVK_ANSI_P {
             viewModel.togglePinSelected()
             return true
         }
 
-        if event.modifierFlags.contains(.command), event.keyCode == 51 { // ⌘⌫
+        if event.modifierFlags.contains(.command), key == kVK_Delete {
             if viewModel.mode == .clipboardHistory {
                 if let clipboard = viewModel.clipboardViewModel, !clipboard.query.isEmpty {
                     clipboard.updateQuery("")

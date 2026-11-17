@@ -79,16 +79,16 @@ public struct OnboardingView: View {
 
                 HotkeyRecorderView(
                     hotkey: Binding(
-                        get: { viewModel.preferences.hotkey },
-                        set: { viewModel.updateHotkey($0) }
+                        get: { viewModel.preferences.values.hotkey },
+                        set: { viewModel.hotkeys.updatePrimary($0) }
                     )
                 )
                 .frame(width: 150, height: 30)
             }
 
-            if let error = viewModel.hotkeyError {
+            if let error = viewModel.hotkeys.primaryError {
                 warning(error)
-            } else if !viewModel.isHotkeyRegistered {
+            } else if !viewModel.hotkeys.isPrimaryRegistered {
                 warning(
                     String(
                         localized: "This shortcut is already used by another app. Record a different one."

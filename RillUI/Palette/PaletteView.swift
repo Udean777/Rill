@@ -192,7 +192,7 @@ private struct PreviewCommands: CommandProviding {
     var commands: [SearchResult] {
         [
             SearchResult(
-                id: .init(source: "command", raw: "open-settings"),
+                id: .init(source: .command, raw: "open-settings"),
                 title: "Rill Settings",
                 subtitle: "Preferences",
                 icon: .systemSymbol("gearshape"),
@@ -228,7 +228,7 @@ private struct PreviewApplications: ApplicationCataloguing {
     func applications() async -> [SearchResult] {
         [
             SearchResult(
-                id: .init(source: "application", raw: "preview"),
+                id: .init(source: .application, raw: "preview"),
                 title: "Preview App",
                 subtitle: "/Applications",
                 icon: .systemSymbol("app"),

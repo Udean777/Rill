@@ -11,10 +11,10 @@ struct ApplicationsSettingsTab: View {
                 SettingsToggleRow(
                     "Enable Applications Grid",
                     subtitle: "Floating Launchpad-style overlay with custom order, folders, and hidden apps.",
-                    isOn: viewModel.binding(for: \.applicationsLauncherEnabled)
+                    isOn: viewModel.preferences.binding(for: \.applicationsLauncherEnabled)
                 )
 
-                if viewModel.preferences.applicationsLauncherEnabled {
+                if viewModel.preferences.values.applicationsLauncherEnabled {
                     SettingsCardDivider()
 
                     HStack {
@@ -23,20 +23,20 @@ struct ApplicationsSettingsTab: View {
                         Spacer()
                         HotkeyRecorderView(
                             hotkey: Binding(
-                                get: { viewModel.preferences.applicationsHotkey },
+                                get: { viewModel.preferences.values.applicationsHotkey },
                                 set: { newHotkey in
-                                    Task { await viewModel.updateApplicationsHotkey(newHotkey) }
+                                    Task { await viewModel.hotkeys.updateApplications(newHotkey) }
                                 }
                             )
                         )
                         .frame(width: 140, height: 28)
                     }
 
-                    if let error = viewModel.applicationsHotkeyError {
+                    if let error = viewModel.hotkeys.applicationsError {
                         Text(error)
                             .font(.system(size: 11))
                             .foregroundStyle(.red)
-                    } else if !viewModel.isApplicationsHotkeyRegistered {
+                    } else if !viewModel.hotkeys.isApplicationsRegistered {
                         Text("This shortcut is already used by another app.")
                             .font(.system(size: 11))
                             .foregroundStyle(.red)
@@ -44,20 +44,20 @@ struct ApplicationsSettingsTab: View {
                 }
             }
 
-            if viewModel.preferences.applicationsLauncherEnabled {
+            if viewModel.preferences.values.applicationsLauncherEnabled {
                 SettingsCard(title: "Trackpad Gesture") {
                     SettingsToggleRow(
                         "4-finger pinch gesture",
                         subtitle: "Pinch in with 4 fingers to open, pinch out to close.",
-                        isOn: viewModel.binding(for: \.applicationsPinchGestureEnabled)
+                        isOn: viewModel.preferences.binding(for: \.applicationsPinchGestureEnabled)
                     )
 
-                    if viewModel.preferences.applicationsPinchGestureEnabled {
+                    if viewModel.preferences.values.applicationsPinchGestureEnabled {
                         SettingsCardDivider()
 
                         trackpadSystemStatusGuide
 
-                        if viewModel.isSystemFourFingerPinchDisabled {
+                        if viewModel.permissions.isSystemFourFingerPinchDisabled {
                             SettingsCardDivider()
 
                             VStack(alignment: .leading, spacing: 6) {
@@ -70,7 +70,7 @@ struct ApplicationsSettingsTab: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 Slider(
-                                    value: viewModel.binding(for: \.applicationsPinchSensitivity),
+                                    value: viewModel.preferences.binding(for: \.applicationsPinchSensitivity),
                                     in: 0.10...0.45,
                                     step: 0.03
                                 )
@@ -84,7 +84,7 @@ struct ApplicationsSettingsTab: View {
                         Text("Columns")
                             .font(.system(size: 13))
                         Spacer()
-                        Picker("", selection: viewModel.binding(for: \.applicationsGridColumns)) {
+                        Picker("", selection: viewModel.preferences.binding(for: \.applicationsGridColumns)) {
                             ForEach(Preferences.applicationsGridColumnChoices, id: \.self) { count in
                                 Text("\(count)").tag(count)
                             }
@@ -99,7 +99,7 @@ struct ApplicationsSettingsTab: View {
                         Text("Rows per page")
                             .font(.system(size: 13))
                         Spacer()
-                        Picker("", selection: viewModel.binding(for: \.applicationsGridRows)) {
+                        Picker("", selection: viewModel.preferences.binding(for: \.applicationsGridRows)) {
                             ForEach(Preferences.applicationsGridRowChoices, id: \.self) { count in
                                 Text("\(count)").tag(count)
                             }
@@ -140,18 +140,15 @@ struct ApplicationsSettingsTab: View {
             Text("All folders, custom items, hidden apps, and custom ordering will be cleared.")
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            viewModel.refreshStatus()
+            viewModel.refreshStatusAndReapplyPreferences()
         }
-        .task {
-            while !Task.isCancelled {
-                viewModel.refreshStatus()
-                try? await Task.sleep(for: .seconds(1))
-            }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            viewModel.refreshStatusAndReapplyPreferences()
         }
     }
 
     private var trackpadSystemStatusGuide: some View {
-        let isReady = viewModel.isSystemFourFingerPinchDisabled
+        let isReady = viewModel.permissions.isSystemFourFingerPinchDisabled
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -178,7 +175,7 @@ struct ApplicationsSettingsTab: View {
                 }
                 Spacer()
                 Button("Open Trackpad Settings…") {
-                    viewModel.openTrackpadMoreGesturesSettings()
+                    viewModel.permissions.openTrackpadMoreGesturesSettings()
                 }
                 .controlSize(.small)
             }
@@ -197,7 +194,7 @@ struct ApplicationsSettingsTab: View {
     }
 
     private var sensitivityLabel: String {
-        let value = viewModel.preferences.applicationsPinchSensitivity
+        let value = viewModel.preferences.values.applicationsPinchSensitivity
         if value <= 0.16 { return String(localized: "High") }
         if value <= 0.28 { return String(localized: "Medium") }
         return String(localized: "Low")

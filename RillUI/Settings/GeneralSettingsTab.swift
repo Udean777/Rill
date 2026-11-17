@@ -13,18 +13,18 @@ struct GeneralSettingsTab: View {
                     Spacer()
                     HotkeyRecorderView(
                         hotkey: Binding(
-                            get: { viewModel.preferences.hotkey },
-                            set: { viewModel.updateHotkey($0) }
+                            get: { viewModel.preferences.values.hotkey },
+                            set: { viewModel.hotkeys.updatePrimary($0) }
                         )
                     )
                     .frame(width: 140, height: 28)
                 }
 
-                if let error = viewModel.hotkeyError {
+                if let error = viewModel.hotkeys.primaryError {
                     Text(error)
                         .font(.system(size: 11))
                         .foregroundStyle(.red)
-                } else if !viewModel.isHotkeyRegistered {
+                } else if !viewModel.hotkeys.isPrimaryRegistered {
                     Text("This shortcut is already used by another app. Record a different one.")
                         .font(.system(size: 11))
                         .foregroundStyle(.red)
@@ -35,7 +35,7 @@ struct GeneralSettingsTab: View {
                 SettingsToggleRow(
                     "Show menu bar icon",
                     subtitle: "The palette itself never appears in the Dock or ⌘Tab.",
-                    isOn: viewModel.binding(for: \.statusBarEnabled)
+                    isOn: viewModel.preferences.binding(for: \.statusBarEnabled)
                 )
 
                 SettingsCardDivider()
@@ -44,11 +44,11 @@ struct GeneralSettingsTab: View {
                     SettingsToggleRow(
                         "Launch at Login",
                         isOn: Binding(
-                            get: { viewModel.isLaunchAtLoginEnabled },
-                            set: { viewModel.toggleLaunchAtLogin($0) }
+                            get: { viewModel.permissions.isLaunchAtLoginEnabled },
+                            set: { viewModel.permissions.toggleLaunchAtLogin($0) }
                         )
                     )
-                    if let error = viewModel.launchAtLoginError {
+                    if let error = viewModel.permissions.launchAtLoginError {
                         Text(error)
                             .font(.system(size: 11))
                             .foregroundStyle(.red)
@@ -60,7 +60,7 @@ struct GeneralSettingsTab: View {
                 SettingsToggleRow(
                     "Show keyboard hints",
                     subtitle: "The shortcut reminder next to the command chips.",
-                    isOn: viewModel.binding(for: \.showKeyboardHints)
+                    isOn: viewModel.preferences.binding(for: \.showKeyboardHints)
                 )
             }
 
@@ -75,7 +75,7 @@ struct GeneralSettingsTab: View {
                             viewModel.showWelcomeWindow()
                         }
                     }
-                    Text("Reset restores the hotkey, menu bar icon, file search and layout. Favorites and usage history stay.")
+                    Text("Reset restores the hotkey, menu bar icon and file search. Favorites and usage history stay.")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }

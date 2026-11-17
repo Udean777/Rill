@@ -22,13 +22,18 @@ public actor JSONUsageStore: UsageStoring {
 
     private static let keySeparator: Character = "\u{1F}"
 
-    private let fileURL: URL
-    private let log = Logger(subsystem: "com.ssajudn.Rill", category: "store")
+    private let store: JSONFileStore<[String: Entry]>
     private var stored: [String: Entry]?
     private var cachedSnapshot: UsageSnapshot?
 
     public init(fileURL: URL = JSONUsageStore.defaultFileURL()) {
-        self.fileURL = fileURL
+        self.store = JSONFileStore(
+            fileURL: fileURL,
+            dateEncodingStrategy: .iso8601,
+            dateDecodingStrategy: .iso8601,
+            log: Logger(subsystem: "com.ssajudn.Rill", category: "store"),
+            name: "usage"
+        )
     }
 
     public static func defaultFileURL() -> URL {
@@ -161,12 +166,7 @@ public actor JSONUsageStore: UsageStoring {
     public func reset() async {
         stored = [:]
         cachedSnapshot = .empty
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
-        do {
-            try FileManager.default.removeItem(at: fileURL)
-        } catch {
-            log.error("usage reset failed: \(String(describing: error), privacy: .public)")
-        }
+        store.removeFile()
     }
 
     private func loaded() -> [String: Entry] {
@@ -179,46 +179,22 @@ public actor JSONUsageStore: UsageStoring {
     }
 
     private func read() -> [String: Entry] {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [:] }
-
-        do {
-            let data = try Data(contentsOf: fileURL)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            return try decoder.decode([String: Entry].self, from: data)
-        } catch {
-            log.error("usage read failed: \(String(describing: error), privacy: .public)")
-            return [:]
-        }
+        store.read() ?? [:]
     }
 
     private func persist(_ entries: [String: Entry]) {
-        do {
-            try FileManager.default.createDirectory(
-                at: fileURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            // Machine data: compact output is 2.3x faster to write and 27%
-            // smaller than pretty-printed, sorted JSON.
-            let data = try encoder.encode(entries)
-            try data.write(to: fileURL, options: .atomic)
-        } catch {
-            log.error("usage write failed: \(String(describing: error), privacy: .public)")
-        }
+        store.write(entries)
     }
 
     private static func key(for id: SearchResult.ID) -> String {
-        "\(id.source)\(keySeparator)\(id.raw)"
+        "\(id.source.rawValue)\(keySeparator)\(id.raw)"
     }
 
     private static func identifier(from key: String) -> SearchResult.ID? {
         guard let separatorIndex = key.firstIndex(of: keySeparator) else { return nil }
 
         return SearchResult.ID(
-            source: String(key[..<separatorIndex]),
+            source: SearchResult.Source(rawValue: String(key[..<separatorIndex])),
             raw: String(key[key.index(after: separatorIndex)...])
         )
     }

@@ -30,6 +30,7 @@ public final class ApplicationsGridViewModel {
 
     @ObservationIgnored private let loadUseCase: LoadApplicationsGridUseCase
     @ObservationIgnored private let layoutStore: ApplicationsLayoutStoring
+    @ObservationIgnored private let layoutEditor = EditApplicationsLayoutUseCase()
 
     public init(
         loadUseCase: LoadApplicationsGridUseCase,
@@ -53,36 +54,18 @@ public final class ApplicationsGridViewModel {
             filteredItems = []
             return
         }
-        let searchQuery = SearchQuery(raw: trimmed)
-        let allItems: [ApplicationGridItem] = nodes.flatMap { node in
-            switch node {
-            case .item(let item): [item]
-            case .folder(_, _, let items): items
-            }
-        }
-        filteredItems = allItems
-            .compactMap { item -> (item: ApplicationGridItem, score: Double)? in
-                let score = MatchScore.score(title: item.title, query: searchQuery)
-                return score > 0 ? (item, score) : nil
-            }
-            .sorted { lhs, rhs in
-                if lhs.score != rhs.score { return lhs.score > rhs.score }
-                return lhs.item.title.localizedCaseInsensitiveCompare(rhs.item.title) == .orderedAscending
-            }
-            .map(\.item)
+        filteredItems = ApplicationGridFilter.filter(
+            nodes.flatMap(\.items),
+            query: SearchQuery(raw: trimmed)
+        )
     }
 
     public var pageCount: Int {
-        max(1, Int(ceil(Double(nodes.count) / Double(pageSize))))
+        max(1, SectionPager.pageCount(itemCount: nodes.count, pageSize: pageSize))
     }
 
     public var pagedNodes: [ApplicationsGridNode] {
-        guard !nodes.isEmpty else { return [] }
-        let safePage = min(max(0, currentPage), pageCount - 1)
-        let start = safePage * pageSize
-        let end = min(start + pageSize, nodes.count)
-        guard start < end else { return [] }
-        return Array(nodes[start..<end])
+        Array(SectionPager.slice(nodes, page: currentPage, pageSize: pageSize))
     }
 
     public var openFolder: (id: UUID, name: String, items: [ApplicationGridItem])? {
@@ -119,6 +102,9 @@ public final class ApplicationsGridViewModel {
         }
         if hiddenApplications != output.hiddenApplications {
             hiddenApplications = output.hiddenApplications
+        }
+        if let openFolderID, openFolder == nil {
+            self.openFolderID = nil
         }
         let clampedPage = min(max(0, currentPage), pageCount - 1)
         if clampedPage != currentPage {
@@ -242,149 +228,45 @@ public final class ApplicationsGridViewModel {
 
     public func moveNode(draggedID: String, to targetID: String) {
         guard draggedID != targetID, !isFiltering else { return }
-        Task {
-            var layout = await syncedLayout()
-            guard let fromIndex = layout.entries.firstIndex(where: { $0.id == draggedID }),
-                  let toIndex = layout.entries.firstIndex(where: { $0.id == targetID }) else {
-                return
-            }
-            let moved = layout.entries.remove(at: fromIndex)
-            layout.entries.insert(moved, at: toIndex)
-            await layoutStore.save(layout)
-            await reload()
-        }
+        persistLayout { self.layoutEditor.moving(draggedID, to: targetID, in: $0) }
     }
 
     public func createFolder(combining sourceID: String, with targetID: String, name: String) {
         guard sourceID != targetID else { return }
-        Task {
-            var layout = await syncedLayout()
-            guard let sourceEntry = layout.entries.first(where: { $0.id == sourceID }),
-                  let targetEntry = layout.entries.first(where: { $0.id == targetID }),
-                  let sourceRef = itemReference(from: sourceEntry) else {
-                return
-            }
-
-            if case .folder(var existingFolder) = targetEntry,
-               let targetIndex = layout.entries.firstIndex(where: { $0.id == targetID }) {
-                existingFolder.items.append(sourceRef)
-                layout.entries[targetIndex] = .folder(existingFolder)
-                layout.entries.removeAll { $0.id == sourceID }
-            } else if let targetRef = itemReference(from: targetEntry),
-                      let targetIndex = layout.entries.firstIndex(where: { $0.id == targetID }) {
-                let folder = ApplicationFolder(
-                    name: name.isEmpty ? String(localized: "Folder") : name,
-                    items: [targetRef, sourceRef]
-                )
-                layout.entries[targetIndex] = .folder(folder)
-                layout.entries.removeAll { $0.id == sourceID }
-            }
-            await layoutStore.save(layout)
-            await reload()
+        let folderName = name.isEmpty ? String(localized: "Folder") : name
+        persistLayout {
+            self.layoutEditor.creatingFolder(
+                combining: sourceID, with: targetID, name: folderName, in: $0
+            )
         }
     }
 
     public func renameFolder(_ folderID: UUID, to newName: String) {
-        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        Task {
-            var layout = await syncedLayout()
-            guard let index = layout.entries.firstIndex(where: {
-                if case .folder(let folder) = $0 { return folder.id == folderID }
-                return false
-            }),
-            case .folder(var folder) = layout.entries[index] else {
-                return
-            }
-            folder.name = trimmed
-            layout.entries[index] = .folder(folder)
-            await layoutStore.save(layout)
-            await reload()
-        }
+        persistLayout { self.layoutEditor.renamingFolder(folderID, to: newName, in: $0) }
     }
 
     public func removeItem(_ itemID: String, fromFolder folderID: UUID) {
-        Task {
-            var layout = await syncedLayout()
-            guard let index = layout.entries.firstIndex(where: {
-                if case .folder(let folder) = $0 { return folder.id == folderID }
-                return false
-            }),
-            case .folder(var folder) = layout.entries[index],
-            let itemIndex = folder.items.firstIndex(where: { $0.stableID == itemID }) else {
-                return
-            }
-            let removed = folder.items.remove(at: itemIndex)
-            let restoredEntry: ApplicationGridEntry = switch removed {
-            case .app(let appID): .app(id: appID)
-            case .custom(let custom): .custom(custom)
-            }
-            if folder.items.isEmpty {
-                layout.entries[index] = restoredEntry
-                openFolderID = nil
-            } else {
-                layout.entries[index] = .folder(folder)
-                layout.entries.insert(restoredEntry, at: min(index + 1, layout.entries.count))
-            }
-            await layoutStore.save(layout)
-            await reload()
-        }
+        persistLayout { self.layoutEditor.removingItem(itemID, fromFolder: folderID, in: $0) }
     }
 
     public func hideApplication(appID: String) {
-        Task {
-            var layout = await syncedLayout()
-            layout.hiddenAppIDs.insert(appID)
-            await layoutStore.save(layout)
-            await reload()
-        }
+        persistLayout { self.layoutEditor.settingHidden(appID, isHidden: true, in: $0) }
     }
 
     public func unhideApplication(appID: String) {
-        Task {
-            var layout = await syncedLayout()
-            layout.hiddenAppIDs.remove(appID)
-            await layoutStore.save(layout)
-            await reload()
-        }
+        persistLayout { self.layoutEditor.settingHidden(appID, isHidden: false, in: $0) }
     }
 
     public func addCustomItem(title: String, target: String, isWebURL: Bool) {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedTarget = target.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty, !trimmedTarget.isEmpty else { return }
-
-        let normalizedTarget: String
-        if isWebURL, let parsed = WebURLParser.parse(trimmedTarget) {
-            normalizedTarget = parsed.absoluteString
-        } else {
-            normalizedTarget = trimmedTarget
-        }
-
-        Task {
-            var layout = await syncedLayout()
-            let entry = CustomApplicationEntry(
-                title: trimmedTitle,
-                target: normalizedTarget,
-                isWebURL: isWebURL,
-                symbol: isWebURL ? "globe" : nil
+        persistLayout {
+            self.layoutEditor.addingCustomItem(
+                title: title, target: target, isWebURL: isWebURL, in: $0
             )
-            layout.entries.insert(.custom(entry), at: 0)
-            await layoutStore.save(layout)
-            await reload()
         }
     }
 
     public func removeCustomItem(id: UUID) {
-        Task {
-            var layout = await syncedLayout()
-            layout.entries.removeAll {
-                if case .custom(let custom) = $0 { return custom.id == id }
-                return false
-            }
-            await layoutStore.save(layout)
-            await reload()
-        }
+        persistLayout { self.layoutEditor.removingCustomItem(id: id, in: $0) }
     }
 
     public func resetLayout() {
@@ -395,66 +277,16 @@ public final class ApplicationsGridViewModel {
         }
     }
 
-    /// Materialises the current resolved grid into a persisted `ApplicationsLayout`
-    /// so drag-and-drop and folder operations work on first edit.
-    private func syncedLayout() async -> ApplicationsLayout {
-        let current = await layoutStore.load()
-        let entries: [ApplicationGridEntry] = nodes.map { node in
-            switch node {
-            case .item(let item):
-                if let appID = item.appID {
-                    return .app(id: appID)
-                }
-                if let customID = item.customID {
-                    let isWeb = if case .openWebURL = item.action { true } else { false }
-                    let target: String = switch item.action {
-                    case .openWebURL(let url, _): url.absoluteString
-                    case .openFile(let url): url.path
-                    default: ""
-                    }
-                    return .custom(CustomApplicationEntry(
-                        id: customID,
-                        title: item.title,
-                        target: target,
-                        isWebURL: isWeb,
-                        symbol: isWeb ? "globe" : nil
-                    ))
-                }
-                return .app(id: item.id)
-
-            case .folder(let id, let name, let items):
-                let refs: [ApplicationGridItemReference] = items.compactMap { item in
-                    if let appID = item.appID {
-                        return .app(id: appID)
-                    }
-                    if let customID = item.customID {
-                        let isWeb = if case .openWebURL = item.action { true } else { false }
-                        let target: String = switch item.action {
-                        case .openWebURL(let url, _): url.absoluteString
-                        case .openFile(let url): url.path
-                        default: ""
-                        }
-                        return .custom(CustomApplicationEntry(
-                            id: customID,
-                            title: item.title,
-                            target: target,
-                            isWebURL: isWeb,
-                            symbol: isWeb ? "globe" : nil
-                        ))
-                    }
-                    return nil
-                }
-                return .folder(ApplicationFolder(id: id, name: name, items: refs))
-            }
-        }
-        return ApplicationsLayout(entries: entries, hiddenAppIDs: current.hiddenAppIDs)
-    }
-
-    private func itemReference(from entry: ApplicationGridEntry) -> ApplicationGridItemReference? {
-        switch entry {
-        case .app(let appID): .app(id: appID)
-        case .custom(let custom): .custom(custom)
-        case .folder: nil
+    /// Materialises the resolved grid into the stored layout, applies `edit`,
+    /// persists, then reloads so the grid reflects the saved state.
+    private func persistLayout(
+        _ edit: @escaping @MainActor (ApplicationsLayout) -> ApplicationsLayout
+    ) {
+        Task { @MainActor in
+            let stored = await layoutStore.load()
+            let synced = layoutEditor.materialized(stored, from: nodes)
+            await layoutStore.save(edit(synced))
+            await reload()
         }
     }
 }

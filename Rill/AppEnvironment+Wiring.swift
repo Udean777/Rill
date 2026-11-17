@@ -202,17 +202,17 @@ extension AppEnvironment {
         settingsViewModel: SettingsViewModel
     ) {
         updateManager.onStateChanged = { [weak settingsViewModel] newState in
-            settingsViewModel?.updateState = newState
+            settingsViewModel?.updates.state = newState
         }
-        settingsViewModel.onCheckForUpdates = { [weak updateManager] in
+        settingsViewModel.updates.onCheckForUpdates = { [weak updateManager] in
             Task {
                 await updateManager?.checkForUpdates(isUserInitiated: true)
             }
         }
-        settingsViewModel.onInstallUpdate = { [weak updateManager] in
+        settingsViewModel.updates.onInstallUpdate = { [weak updateManager] in
             updateManager?.downloadAndInstallUpdate()
         }
-        settingsViewModel.onRestartToUpdate = { [weak updateManager] in
+        settingsViewModel.updates.onRestartToUpdate = { [weak updateManager] in
             updateManager?.quitAfterUpdate(relaunch: true)
         }
     }

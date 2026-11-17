@@ -14,7 +14,7 @@ struct ClipboardSettingsTab: View {
                 SettingsToggleRow(
                     "Record clipboard history",
                     subtitle: "Capture copied text, code, colors, and images into Rill.",
-                    isOn: viewModel.binding(for: \.clipboardHistoryEnabled)
+                    isOn: viewModel.preferences.binding(for: \.clipboardHistoryEnabled)
                 )
 
                 SettingsCardDivider()
@@ -22,7 +22,7 @@ struct ClipboardSettingsTab: View {
                 SettingsToggleRow(
                     "Direct paste into active app",
                     subtitle: "Requires Accessibility permission. If disabled, Enter copies to clipboard.",
-                    isOn: viewModel.binding(for: \.clipboardDirectPaste)
+                    isOn: viewModel.preferences.binding(for: \.clipboardDirectPaste)
                 )
 
                 SettingsCardDivider()
@@ -30,7 +30,7 @@ struct ClipboardSettingsTab: View {
                 SettingsToggleRow(
                     "Store copied images",
                     subtitle: "Saves previews to disk under Application Support.",
-                    isOn: viewModel.binding(for: \.clipboardSaveImages)
+                    isOn: viewModel.preferences.binding(for: \.clipboardSaveImages)
                 )
 
                 SettingsCardDivider()
@@ -39,7 +39,7 @@ struct ClipboardSettingsTab: View {
                     Text("History retention limit")
                         .font(.system(size: 13))
                     Spacer()
-                    Picker("", selection: viewModel.binding(for: \.clipboardHistoryLimit)) {
+                    Picker("", selection: viewModel.preferences.binding(for: \.clipboardHistoryLimit)) {
                         ForEach(Preferences.clipboardHistoryLimitChoices, id: \.self) { limit in
                             Text("\(limit) items").tag(limit)
                         }
@@ -56,10 +56,10 @@ struct ClipboardSettingsTab: View {
                     Spacer()
                     HotkeyRecorderView(
                         hotkey: Binding(
-                            get: { viewModel.preferences.clipboardHotkey },
+                            get: { viewModel.preferences.values.clipboardHotkey },
                             set: { newHotkey in
                                 Task {
-                                    await viewModel.updateClipboardHotkey(newHotkey)
+                                    await viewModel.hotkeys.updateClipboard(newHotkey)
                                 }
                             }
                         )
@@ -67,11 +67,11 @@ struct ClipboardSettingsTab: View {
                     .frame(width: 140, height: 28)
                 }
 
-                if let error = viewModel.clipboardHotkeyError {
+                if let error = viewModel.hotkeys.clipboardError {
                     Text(error)
                         .font(.system(size: 11))
                         .foregroundStyle(.red)
-                } else if !viewModel.isClipboardHotkeyRegistered {
+                } else if !viewModel.hotkeys.isClipboardRegistered {
                     Text("This shortcut is already used by another app. Record a different one.")
                         .font(.system(size: 11))
                         .foregroundStyle(.red)

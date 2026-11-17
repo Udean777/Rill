@@ -1,6 +1,46 @@
 import Foundation
+import RillData
 import RillDomain
 import Testing
+
+@Suite("JSONClipboardStore")
+struct JSONClipboardStoreTests {
+    @Test func `lowering the history limit trims unpinned items and keeps pins`() async {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("RillClipboardStoreTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let store = JSONClipboardStore(
+            fileURL: tempDir.appendingPathComponent("clipboard.json"),
+            imagesDirectoryURL: tempDir.appendingPathComponent("images", isDirectory: true),
+            maxLimit: 10
+        )
+
+        for index in 0..<4 {
+            await store.save(
+                ClipboardItem(
+                    contentType: .text,
+                    textContent: "text \(index)",
+                    copiedAt: Date(timeIntervalSince1970: TimeInterval(index))
+                )
+            )
+        }
+        await store.save(
+            ClipboardItem(
+                contentType: .text,
+                textContent: "pinned",
+                copiedAt: Date(timeIntervalSince1970: 99),
+                isPinned: true
+            )
+        )
+
+        await store.setLimit(2)
+
+        let remaining = await store.items(matching: "", filter: .all, limit: 100)
+        #expect(remaining.count == 3)
+        #expect(remaining.filter(\.isPinned).count == 1)
+    }
+}
 
 @Suite("Clipboard Classification & Entities")
 struct ClipboardClassificationTests {

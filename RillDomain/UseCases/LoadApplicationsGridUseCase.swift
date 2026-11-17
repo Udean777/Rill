@@ -72,12 +72,14 @@ public struct LoadApplicationsGridUseCase: Sendable {
                 nodes.append(.item(item))
 
             case .custom(let customEntry):
-                if let item = makeCustomItem(
-                    customEntry,
-                    defaultBrowserBundleID: currentPreferences.defaultBrowserBundleID
-                ) {
-                    nodes.append(.item(item))
-                }
+                nodes.append(
+                    .item(
+                        makeCustomItem(
+                            customEntry,
+                            defaultBrowserBundleID: currentPreferences.defaultBrowserBundleID
+                        )
+                    )
+                )
 
             case .folder(let folder):
                 var folderItems: [ApplicationGridItem] = []
@@ -91,12 +93,12 @@ public struct LoadApplicationsGridUseCase: Sendable {
                         }
                         folderItems.append(item)
                     case .custom(let customEntry):
-                        if let item = makeCustomItem(
-                            customEntry,
-                            defaultBrowserBundleID: currentPreferences.defaultBrowserBundleID
-                        ) {
-                            folderItems.append(item)
-                        }
+                        folderItems.append(
+                            makeCustomItem(
+                                customEntry,
+                                defaultBrowserBundleID: currentPreferences.defaultBrowserBundleID
+                            )
+                        )
                     }
                 }
                 if !folderItems.isEmpty {
@@ -122,25 +124,10 @@ public struct LoadApplicationsGridUseCase: Sendable {
     private func makeCustomItem(
         _ entry: CustomApplicationEntry,
         defaultBrowserBundleID: String?
-    ) -> ApplicationGridItem? {
-        if entry.isWebURL, let url = URL(string: entry.target) {
-            return ApplicationGridItem(
-                id: "custom:\(entry.id.uuidString)",
-                customID: entry.id,
-                title: entry.title,
-                subtitle: url.host ?? entry.target,
-                icon: .systemSymbol(entry.symbol ?? "globe"),
-                action: .openWebURL(url, browserBundleID: defaultBrowserBundleID)
-            )
-        }
-        let fileURL = URL(fileURLWithPath: entry.target)
-        return ApplicationGridItem(
-            id: "custom:\(entry.id.uuidString)",
-            customID: entry.id,
-            title: entry.title,
-            subtitle: fileURL.deletingLastPathComponent().path,
-            icon: .fileURL(fileURL),
-            action: .openFile(fileURL)
+    ) -> ApplicationGridItem {
+        ApplicationsLayoutMapper.item(
+            for: entry,
+            defaultBrowserBundleID: defaultBrowserBundleID
         )
     }
 }

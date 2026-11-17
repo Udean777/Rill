@@ -75,7 +75,7 @@ public actor SystemSettingsCatalog: SystemSettingsProviding {
             return nil
         }
         return SearchResult(
-            id: .init(source: "system-settings", raw: raw),
+            id: .init(source: .systemSettings, raw: raw),
             title: title,
             subtitle: subtitle,
             icon: .systemSymbol(symbol),

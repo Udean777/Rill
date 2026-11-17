@@ -100,7 +100,7 @@ struct AboutSettingsTab: View {
                     Text("Accessibility")
                         .font(.system(size: 13))
                     Spacer()
-                    if viewModel.isAccessibilityGranted {
+                    if viewModel.permissions.isAccessibilityGranted {
                         Text("Granted")
                             .font(.system(size: 13))
                             .foregroundStyle(.green)
@@ -110,7 +110,7 @@ struct AboutSettingsTab: View {
                                 .font(.system(size: 13))
                                 .foregroundStyle(.secondary)
                             Button("Open System Settings") {
-                                viewModel.openAccessibilitySettings()
+                                viewModel.permissions.openAccessibilitySettings()
                             }
                         }
                     }
@@ -121,7 +121,7 @@ struct AboutSettingsTab: View {
                 HStack {
                     Spacer()
                     Button("Refresh") {
-                        viewModel.refreshStatus()
+                        viewModel.permissions.refresh()
                     }
                 }
             }
@@ -154,7 +154,7 @@ private struct UpdatesRow: View {
 
             Spacer()
 
-            switch viewModel.updateState {
+            switch viewModel.updates.state {
             case .checking:
                 ProgressView()
                     .controlSize(.small)
@@ -172,22 +172,22 @@ private struct UpdatesRow: View {
                     .controlSize(.small)
             case .available:
                 Button("Update Now") {
-                    viewModel.installUpdate()
+                    viewModel.updates.installUpdate()
                 }
             case .readyToQuit:
                 Button("Restart Rill") {
-                    viewModel.restartToUpdate()
+                    viewModel.updates.restartToUpdate()
                 }
             case .idle, .upToDate, .failed:
                 Button("Check for Updates") {
-                    viewModel.checkForUpdates()
+                    viewModel.updates.checkForUpdates()
                 }
             }
         }
     }
 
     private var statusSubtitle: String? {
-        switch viewModel.updateState {
+        switch viewModel.updates.state {
         case .idle:
             nil
         case .checking:

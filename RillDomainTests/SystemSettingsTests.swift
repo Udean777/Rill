@@ -70,7 +70,7 @@ private struct FakeSystemSettings: SystemSettingsProviding {
                 return nil
             }
             return SearchResult(
-                id: .init(source: "system-settings", raw: raw),
+                id: .init(source: .systemSettings, raw: raw),
                 title: raw.capitalized,
                 icon: .systemSymbol("gearshape"),
                 section: .systemSettings,
@@ -81,7 +81,7 @@ private struct FakeSystemSettings: SystemSettingsProviding {
         if let cameraURL = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Camera") {
             items.append(
                 SearchResult(
-                    id: .init(source: "system-settings", raw: "privacy-camera"),
+                    id: .init(source: .systemSettings, raw: "privacy-camera"),
                     title: "Camera",
                     subtitle: "System Settings › Privacy & Security",
                     icon: .systemSymbol("camera"),

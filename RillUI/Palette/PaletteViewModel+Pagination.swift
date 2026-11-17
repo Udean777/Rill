@@ -1,11 +1,6 @@
 import RillDomain
 
 extension PaletteViewModel {
-    /// The commands section, rendered as a fixed chip row in the root layout.
-    public var commandSection: RankedSection? {
-        sections.first { $0.section == .commands }
-    }
-
     public var applicationPageCount: Int {
         SectionPager.pageCount(
             itemCount: applicationResults.count,

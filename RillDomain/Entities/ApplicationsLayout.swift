@@ -117,7 +117,7 @@ public struct ApplicationGridItem: Sendable, Equatable, Hashable, Identifiable {
     /// can run it and record frecency.
     public var asSearchResult: SearchResult {
         SearchResult(
-            id: .init(source: appID != nil ? "application" : "custom-application", raw: appID ?? id),
+            id: .init(source: appID != nil ? .application : .customApplication, raw: appID ?? id),
             title: title,
             subtitle: subtitle,
             icon: icon,
@@ -145,6 +145,14 @@ public enum ApplicationsGridNode: Sendable, Equatable, Hashable, Identifiable {
         switch self {
         case .item(let item): item.title
         case .folder(_, let name, _): name
+        }
+    }
+
+    /// The launchable items this node exposes: itself, or the folder's contents.
+    public var items: [ApplicationGridItem] {
+        switch self {
+        case .item(let item): [item]
+        case .folder(_, _, let items): items
         }
     }
 }

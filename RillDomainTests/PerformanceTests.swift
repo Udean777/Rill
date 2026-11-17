@@ -34,7 +34,7 @@ struct PerformanceTests {
         for i in 0..<3500 {
             candidates.append(
                 SearchResult(
-                    id: .init(source: "application", raw: "app-\(i)"),
+                    id: .init(source: .application, raw: "app-\(i)"),
                     title: "Application \(i)",
                     subtitle: "/Applications/App\(i).app",
                     icon: .systemSymbol("app"),
@@ -49,7 +49,7 @@ struct PerformanceTests {
         for i in 0..<500 {
             candidates.append(
                 SearchResult(
-                    id: .init(source: "command", raw: "cmd-\(i)"),
+                    id: .init(source: .command, raw: "cmd-\(i)"),
                     title: "Command \(i)",
                     subtitle: "Built-in command",
                     icon: .systemSymbol("terminal"),
@@ -79,7 +79,7 @@ struct PerformanceTests {
         // the folding-heavy MatchScore path the previous test skips.
         let candidates = (0..<4000).map { index in
             SearchResult(
-                id: .init(source: "application", raw: "app-\(index)"),
+                id: .init(source: .application, raw: "app-\(index)"),
                 title: "Application \(index)",
                 icon: .systemSymbol("app"),
                 section: .applications,
@@ -119,7 +119,7 @@ struct PerformanceTests {
         )
         let apps = (0..<2000).map { index in
             SearchResult(
-                id: .init(source: "application", raw: "app-\(index)"),
+                id: .init(source: .application, raw: "app-\(index)"),
                 title: "Application \(index)",
                 icon: .systemSymbol("app"),
                 section: .applications,
@@ -129,7 +129,7 @@ struct PerformanceTests {
         }
         let settings = (0..<1500).map { index in
             SearchResult(
-                id: .init(source: "system-settings", raw: "setting-\(index)"),
+                id: .init(source: .systemSettings, raw: "setting-\(index)"),
                 title: index == 42 ? "Change the wallpaper" : "Setting Option \(index)",
                 subtitle: "System Settings › Wallpaper",
                 icon: .systemSymbol("gearshape"),

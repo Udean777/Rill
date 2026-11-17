@@ -48,7 +48,7 @@ struct ApplicationsGridTests {
 
     private func appResult(id: String, title: String) -> SearchResult {
         SearchResult(
-            id: .init(source: "application", raw: id),
+            id: .init(source: .application, raw: id),
             title: title,
             subtitle: "/Applications",
             icon: .systemSymbol("app"),

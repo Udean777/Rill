@@ -8,7 +8,7 @@ struct SearchUseCaseTests {
     @Test func `empty query shows applications and commands`() async {
         let useCase = makeUseCase(
             commands: [.fixture(title: "Open Settings")],
-            applications: [.fixture(title: "Safari", section: .applications, kind: .application, source: "application")]
+            applications: [.fixture(title: "Safari", section: .applications, kind: .application, source: .application)]
         )
 
         let sections = await useCase(SearchQuery(raw: ""))
@@ -20,13 +20,13 @@ struct SearchUseCaseTests {
 
     @Test func `apps used in the last seven days are suggested`() async {
         let safari = SearchResult.fixture(
-            title: "Safari", section: .applications, kind: .application, source: "application"
+            title: "Safari", section: .applications, kind: .application, source: .application
         )
         let notes = SearchResult.fixture(
-            title: "Notes", section: .applications, kind: .application, source: "application"
+            title: "Notes", section: .applications, kind: .application, source: .application
         )
         let mail = SearchResult.fixture(
-            title: "Mail", section: .applications, kind: .application, source: "application"
+            title: "Mail", section: .applications, kind: .application, source: .application
         )
         let now = Date(timeIntervalSince1970: 0)
         let usage = UsageSnapshot(
@@ -50,7 +50,7 @@ struct SearchUseCaseTests {
 
     @Test func `apps unused for over a week stay in applications`() async {
         let old = SearchResult.fixture(
-            title: "Old", section: .applications, kind: .application, source: "application"
+            title: "Old", section: .applications, kind: .application, source: .application
         )
         let now = Date(timeIntervalSince1970: 0)
         let usage = UsageSnapshot(
@@ -67,7 +67,7 @@ struct SearchUseCaseTests {
         let now = Date(timeIntervalSince1970: 0)
         let apps = (0..<7).map { index in
             SearchResult.fixture(
-                title: "App \(index)", section: .applications, kind: .application, source: "application"
+                title: "App \(index)", section: .applications, kind: .application, source: .application
             )
         }
         let usage = UsageSnapshot(
@@ -90,7 +90,7 @@ struct SearchUseCaseTests {
         let now = Date(timeIntervalSince1970: 0)
         let apps = (0..<7).map { index in
             SearchResult.fixture(
-                title: "App \(index)", section: .applications, kind: .application, source: "application"
+                title: "App \(index)", section: .applications, kind: .application, source: .application
             )
         }
         let usage = UsageSnapshot(
@@ -133,7 +133,7 @@ struct SearchUseCaseTests {
     @Test func `matches commands and applications in section order`() async {
         let useCase = makeUseCase(
             commands: [.fixture(title: "Open Safari Tab")],
-            applications: [.fixture(title: "Safari", section: .applications, kind: .application, source: "application")]
+            applications: [.fixture(title: "Safari", section: .applications, kind: .application, source: .application)]
         )
 
         let sections = await useCase(SearchQuery(raw: "saf"))
@@ -237,7 +237,7 @@ struct SearchUseCaseTests {
 
     @Test func `hiding the applications section keeps it out of the root layout`() async {
         let app = SearchResult.fixture(
-            title: "Safari", section: .applications, kind: .application, source: "application"
+            title: "Safari", section: .applications, kind: .application, source: .application
         )
         let command = SearchResult.fixture(title: "Open Settings", section: .commands)
 
@@ -254,7 +254,7 @@ struct SearchUseCaseTests {
 
     @Test func `a longer suggestion window includes older apps`() async {
         let old = SearchResult.fixture(
-            title: "Old", section: .applications, kind: .application, source: "application"
+            title: "Old", section: .applications, kind: .application, source: .application
         )
         let now = Date(timeIntervalSince1970: 0)
         let usage = UsageSnapshot(
@@ -275,10 +275,10 @@ struct SearchUseCaseTests {
 
     @Test func `pinned application moves to favorites and leaves applications`() async {
         let safari = SearchResult.fixture(
-            title: "Safari", section: .applications, kind: .application, source: "application"
+            title: "Safari", section: .applications, kind: .application, source: .application
         )
         let notes = SearchResult.fixture(
-            title: "Notes", section: .applications, kind: .application, source: "application"
+            title: "Notes", section: .applications, kind: .application, source: .application
         )
         let useCase = makeUseCase(
             commands: [],
@@ -296,7 +296,7 @@ struct SearchUseCaseTests {
     @Test func `pinned file appears at root with its stored path`() async {
         let url = URL(fileURLWithPath: "/tmp/report.pdf")
         let pin = PinnedResult(
-            id: .init(source: "file", raw: url.path),
+            id: .init(source: .file, raw: url.path),
             title: "report.pdf",
             subtitle: "/tmp",
             fileURL: url,
@@ -313,7 +313,7 @@ struct SearchUseCaseTests {
 
     @Test func `pinned file is hidden when the query does not match`() async {
         let url = URL(fileURLWithPath: "/tmp/report.pdf")
-        let pin = PinnedResult(id: .init(source: "file", raw: url.path), title: "report.pdf", fileURL: url, pinOrder: 0)
+        let pin = PinnedResult(id: .init(source: .file, raw: url.path), title: "report.pdf", fileURL: url, pinOrder: 0)
         let useCase = makeUseCase(commands: [], applications: [], pinned: [pin])
 
         let sections = await useCase(SearchQuery(raw: "safari"))
@@ -323,7 +323,7 @@ struct SearchUseCaseTests {
 
     @Test func `pinned application matching a query is not duplicated`() async {
         let safari = SearchResult.fixture(
-            title: "Safari", section: .applications, kind: .application, source: "application"
+            title: "Safari", section: .applications, kind: .application, source: .application
         )
         let useCase = makeUseCase(
             commands: [],
