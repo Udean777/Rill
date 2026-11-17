@@ -5,10 +5,9 @@ import RillDomain
 /// Persists clipboard history to a JSON index file and stores image payloads
 /// as individual files under Application Support.
 public actor JSONClipboardStore: ClipboardStoring {
-    private let fileURL: URL
+    private let store: JSONFileStore<[ClipboardItem]>
     private let imagesDirectoryURL: URL
-    private let maxLimit: Int
-    private let log = Logger(subsystem: "com.ssajudn.Rill", category: "clipboardStore")
+    private var maxLimit: Int
 
     private var itemsCache: [ClipboardItem]?
 
@@ -17,7 +16,11 @@ public actor JSONClipboardStore: ClipboardStoring {
         imagesDirectoryURL: URL = JSONClipboardStore.defaultImagesDirectoryURL(),
         maxLimit: Int = 500
     ) {
-        self.fileURL = fileURL
+        self.store = JSONFileStore(
+            fileURL: fileURL,
+            log: Logger(subsystem: "com.ssajudn.Rill", category: "clipboardStore"),
+            name: "clipboard store"
+        )
         self.imagesDirectoryURL = imagesDirectoryURL
         self.maxLimit = maxLimit
     }
@@ -28,6 +31,17 @@ public actor JSONClipboardStore: ClipboardStoring {
 
     public static func defaultImagesDirectoryURL() -> URL {
         AppSupportDirectory.directory("ClipboardImages")
+    }
+
+    /// Applies the history limit from Preferences, trimming immediately when lowered.
+    public func setLimit(_ limit: Int) async {
+        guard limit > 0, limit != maxLimit else { return }
+        maxLimit = limit
+        let current = loaded()
+        let trimmed = prune(current)
+        guard trimmed.count != current.count else { return }
+        itemsCache = trimmed
+        persist(trimmed)
     }
 
     public func items(matching query: String, filter: ClipboardFilter, limit: Int) async -> [ClipboardItem] {
@@ -178,34 +192,13 @@ public actor JSONClipboardStore: ClipboardStoring {
             return itemsCache
         }
 
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            itemsCache = []
-            return []
-        }
-
-        do {
-            let data = try Data(contentsOf: fileURL)
-            let items = try JSONDecoder().decode([ClipboardItem].self, from: data)
-            itemsCache = items
-            return items
-        } catch {
-            log.error("failed to decode clipboard store: \(String(describing: error), privacy: .public)")
-            itemsCache = []
-            return []
-        }
+        let items = store.read() ?? []
+        itemsCache = items
+        return items
     }
 
     private func persist(_ items: [ClipboardItem]) {
-        do {
-            let directory = fileURL.deletingLastPathComponent()
-            if !FileManager.default.fileExists(atPath: directory.path) {
-                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            }
-            let data = try JSONEncoder().encode(items)
-            try data.write(to: fileURL, options: .atomic)
-        } catch {
-            log.error("failed to persist clipboard store: \(String(describing: error), privacy: .public)")
-        }
+        store.write(items)
     }
 
     private func deleteImageFile(named fileName: String) {

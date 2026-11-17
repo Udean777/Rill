@@ -120,7 +120,7 @@ public final class SpotlightFileSearch: FileSearching {
 
             results.append(
                 SearchResult(
-                    id: .init(source: "file", raw: path),
+                    id: .init(source: .file, raw: path),
                     title: displayName,
                     subtitle: subtitle,
                     icon: .fileURL(url),

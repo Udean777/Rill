@@ -15,6 +15,9 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     public func show() {
         if let window {
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
             window.makeKeyAndOrderFront(nil)
             NSApp.activate()
             return
@@ -25,12 +28,13 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate {
 
         let window = AuxiliaryWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 420),
-            styleMask: [.titled, .closable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = String(localized: "Rill Settings")
         window.contentView = hostingView
+        window.contentMinSize = NSSize(width: 560, height: 420)
         // Stay on the space the user is actually looking at. Without this, a
         // fullscreen app makes macOS yank the user back to the desktop space
         // where the window was last placed.

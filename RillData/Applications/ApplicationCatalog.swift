@@ -65,7 +65,7 @@ public actor ApplicationCatalog: ApplicationCataloguing {
             ?? url.deletingPathExtension().lastPathComponent
 
         return SearchResult(
-            id: .init(source: "application", raw: bundleID ?? url.standardizedFileURL.path),
+            id: .init(source: .application, raw: bundleID ?? url.standardizedFileURL.path),
             title: name,
             subtitle: url.deletingLastPathComponent().path,
             icon: .fileURL(url),

@@ -14,7 +14,7 @@ public struct CommandRegistry: CommandProviding {
 
         results.append(
             SearchResult(
-                id: .init(source: "command", raw: "open-settings"),
+                id: .init(source: .command, raw: "open-settings"),
                 title: String(localized: "Rill Settings"),
                 subtitle: String(localized: "Preferences"),
                 icon: .systemSymbol("gearshape"),
@@ -26,7 +26,7 @@ public struct CommandRegistry: CommandProviding {
 
         results.append(
             SearchResult(
-                id: .init(source: "command", raw: "open-clipboard"),
+                id: .init(source: .command, raw: "open-clipboard"),
                 title: String(localized: "Clipboard History"),
                 subtitle: String(localized: "Browse copied text, code, colors, and images"),
                 icon: .systemSymbol("doc.on.clipboard"),
@@ -38,7 +38,7 @@ public struct CommandRegistry: CommandProviding {
 
         results.append(
             SearchResult(
-                id: .init(source: "command", raw: "open-home"),
+                id: .init(source: .command, raw: "open-home"),
                 title: String(localized: "Open Home Folder"),
                 icon: .systemSymbol("house"),
                 section: .commands,
@@ -49,7 +49,19 @@ public struct CommandRegistry: CommandProviding {
 
         results.append(
             SearchResult(
-                id: .init(source: "command", raw: "open-applications"),
+                id: .init(source: .command, raw: "open-applications-launcher"),
+                title: String(localized: "Applications Grid"),
+                subtitle: String(localized: "Open floating custom Applications launcher"),
+                icon: .systemSymbol("square.grid.3x3"),
+                section: .commands,
+                kind: .command,
+                primaryAction: .openApplicationsLauncher
+            )
+        )
+
+        results.append(
+            SearchResult(
+                id: .init(source: .command, raw: "open-applications"),
                 title: String(localized: "Open Applications"),
                 icon: .systemSymbol("square.grid.2x2"),
                 section: .commands,

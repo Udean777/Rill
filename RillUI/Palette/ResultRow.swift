@@ -80,10 +80,10 @@ struct ResultRow: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    /// Currency rows get a heavier weight and accent tint so a live conversion
-    /// is not lost among file results.
+    /// Currency and calculator rows get a heavier weight and accent tint so a
+    /// live result is not lost among file results.
     private var isConversion: Bool {
-        result.kind == .currency
+        result.kind == .currency || result.kind == .calculation
     }
 
     /// System Settings rows are actions on the system, not documents. An accent

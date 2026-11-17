@@ -2,6 +2,7 @@
 /// declaration order is the render order (see design.md §4.4).
 public enum Section: String, Sendable, CaseIterable {
     case currency
+    case calculator
     case systemSettings
     case favorites
     case suggestions

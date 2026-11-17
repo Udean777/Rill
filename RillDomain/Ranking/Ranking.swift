@@ -71,7 +71,7 @@ public enum Ranking {
         if result.baseScore > 0 {
             match = result.baseScore
         } else {
-            match = MatchScore.score(title: result.title, query: query, tuning: tuning)
+            match = MatchScore.bestScore(for: result, query: query, tuning: tuning)
         }
         let frecency = Frecency.score(entry, now: now, tuning: tuning)
         return tuning.matchWeight * match + tuning.frecencyWeight * frecency

@@ -7,7 +7,7 @@ extension SearchResult {
         title: String,
         section: Section = .commands,
         kind: Kind = .command,
-        source: String = "fixture",
+        source: SearchResult.Source = .application,
         action: ActionDescriptor = .openFile(URL(fileURLWithPath: "/"))
     ) -> SearchResult {
         SearchResult(

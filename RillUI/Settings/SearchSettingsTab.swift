@@ -18,22 +18,22 @@ struct SearchSettingsTab: View {
             SettingsCard(title: "Files") {
                 SettingsToggleRow(
                     "Enable File Search",
-                    isOn: viewModel.binding(for: \.fileSearchEnabled)
+                    isOn: viewModel.preferences.binding(for: \.fileSearchEnabled)
                 )
 
-                if viewModel.preferences.fileSearchEnabled {
+                if viewModel.preferences.values.fileSearchEnabled {
                     SettingsCardDivider()
 
                     SettingsToggleRow(
                         "Show files",
-                        isOn: viewModel.binding(for: \.fileSearchIncludeFiles)
+                        isOn: viewModel.preferences.binding(for: \.fileSearchIncludeFiles)
                     )
 
                     SettingsCardDivider()
 
                     SettingsToggleRow(
                         "Show folders",
-                        isOn: viewModel.binding(for: \.fileSearchIncludeFolders)
+                        isOn: viewModel.preferences.binding(for: \.fileSearchIncludeFolders)
                     )
 
                     SettingsCardDivider()
@@ -41,7 +41,7 @@ struct SearchSettingsTab: View {
                     SettingsToggleRow(
                         "Show hidden files",
                         subtitle: "Include dot-files and invisible system items.",
-                        isOn: viewModel.binding(for: \.fileSearchIncludeHidden)
+                        isOn: viewModel.preferences.binding(for: \.fileSearchIncludeHidden)
                     )
 
                     SettingsCardDivider()
@@ -50,7 +50,7 @@ struct SearchSettingsTab: View {
                         Text("Search scope")
                             .font(.system(size: 13))
                         Spacer()
-                        Picker("", selection: viewModel.binding(for: \.fileSearchScope)) {
+                        Picker("", selection: viewModel.preferences.binding(for: \.fileSearchScope)) {
                             Text("Home folder").tag(FileSearchScope.homeDirectory)
                             Text("Entire Mac").tag(FileSearchScope.computer)
                             Text("Custom folders").tag(FileSearchScope.custom)
@@ -59,13 +59,13 @@ struct SearchSettingsTab: View {
                         .frame(width: 150)
                     }
 
-                    if viewModel.preferences.fileSearchScope == .custom {
+                    if viewModel.preferences.values.fileSearchScope == .custom {
                         FolderPathList(
-                            paths: viewModel.preferences.fileSearchCustomPaths,
+                            paths: viewModel.preferences.values.fileSearchCustomPaths,
                             emptyLabel: String(localized: "No custom folders selected (defaults to Home folder)."),
                             addLabel: String(localized: "Add Folder…"),
                             onAdd: { isPickingCustomFolder = true },
-                            onRemove: { viewModel.removeFileSearchCustomPath($0) }
+                            onRemove: { viewModel.preferences.removeFileSearchCustomPath($0) }
                         )
                     }
 
@@ -75,11 +75,11 @@ struct SearchSettingsTab: View {
                         Text("Excluded folders")
                             .font(.system(size: 13))
                         FolderPathList(
-                            paths: viewModel.preferences.fileSearchExcludedPaths,
+                            paths: viewModel.preferences.values.fileSearchExcludedPaths,
                             emptyLabel: String(localized: "No excluded folders."),
                             addLabel: String(localized: "Exclude Folder…"),
                             onAdd: { isPickingExcludedFolder = true },
-                            onRemove: { viewModel.removeFileSearchExcludedPath($0) }
+                            onRemove: { viewModel.preferences.removeFileSearchExcludedPath($0) }
                         )
                     }
                 }
@@ -89,7 +89,7 @@ struct SearchSettingsTab: View {
                 SettingsToggleRow(
                     "Convert currency amounts",
                     subtitle: "Type $20, €50 or 20 USD to convert to your local currency. Rates come from Frankfurter and need a network connection.",
-                    isOn: viewModel.binding(for: \.currencyConversionEnabled)
+                    isOn: viewModel.preferences.binding(for: \.currencyConversionEnabled)
                 )
             }
 
@@ -101,8 +101,8 @@ struct SearchSettingsTab: View {
                     SettingsToggleRow(
                         LocalizedStringKey(section.localizedTitle),
                         isOn: Binding(
-                            get: { !viewModel.preferences.hiddenSections.contains(section) },
-                            set: { viewModel.updateSectionVisibility(section, isVisible: $0) }
+                            get: { !viewModel.preferences.values.hiddenSections.contains(section) },
+                            set: { viewModel.preferences.updateSectionVisibility(section, isVisible: $0) }
                         )
                     )
                 }
@@ -111,15 +111,33 @@ struct SearchSettingsTab: View {
 
                 SettingsToggleRow(
                     "Calculator",
-                    isOn: viewModel.binding(for: \.calculatorEnabled)
+                    isOn: viewModel.preferences.binding(for: \.calculatorEnabled)
                 )
 
                 SettingsCardDivider()
 
                 SettingsToggleRow(
                     "Web Search",
-                    isOn: viewModel.binding(for: \.webSearchEnabled)
+                    isOn: viewModel.preferences.binding(for: \.webSearchEnabled)
                 )
+
+                if viewModel.preferences.values.webSearchEnabled {
+                    SettingsCardDivider()
+
+                    HStack {
+                        Text("Default browser")
+                            .font(.system(size: 13))
+                        Spacer()
+                        Picker("", selection: viewModel.preferences.binding(for: \.defaultBrowserBundleID)) {
+                            Text("System Default").tag(Optional<String>.none)
+                            ForEach(viewModel.permissions.availableBrowsers) { browser in
+                                Text(browser.name).tag(browser.bundleID)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 180)
+                    }
+                }
 
                 Text("Sections you switch off never appear in the palette, even on an empty search field.")
                     .font(.system(size: 11))
@@ -131,7 +149,7 @@ struct SearchSettingsTab: View {
                     Text("Suggested apps window")
                         .font(.system(size: 13))
                     Spacer()
-                    Picker("", selection: viewModel.binding(for: \.suggestionWindowDays)) {
+                    Picker("", selection: viewModel.preferences.binding(for: \.suggestionWindowDays)) {
                         ForEach(Preferences.suggestionWindowChoices, id: \.self) { days in
                             Text(String(localized: "\(days) days")).tag(days)
                         }
@@ -146,7 +164,7 @@ struct SearchSettingsTab: View {
                     Text("Applications per page")
                         .font(.system(size: 13))
                     Spacer()
-                    Picker("", selection: viewModel.binding(for: \.applicationsPerPage)) {
+                    Picker("", selection: viewModel.preferences.binding(for: \.applicationsPerPage)) {
                         ForEach(Preferences.applicationsPerPageChoices, id: \.self) { count in
                             Text("\(count)").tag(count)
                         }
@@ -167,7 +185,7 @@ struct SearchSettingsTab: View {
         ) { result in
             if case .success(let urls) = result {
                 for url in urls {
-                    viewModel.addFileSearchCustomPath(url.path)
+                    viewModel.preferences.addFileSearchCustomPath(url.path)
                 }
             }
         }
@@ -178,7 +196,7 @@ struct SearchSettingsTab: View {
         ) { result in
             if case .success(let urls) = result {
                 for url in urls {
-                    viewModel.addFileSearchExcludedPath(url.path)
+                    viewModel.preferences.addFileSearchExcludedPath(url.path)
                 }
             }
         }

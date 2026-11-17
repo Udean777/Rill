@@ -48,7 +48,7 @@ public final class AppUsageTracker {
         guard bundleID != lastRecordedBundleID else { return }
         lastRecordedBundleID = bundleID
 
-        let id = SearchResult.ID(source: "application", raw: bundleID)
+        let id = SearchResult.ID(source: .application, raw: bundleID)
         let now = clock.now
         Task { [usage] in
             await usage.record(id, at: now)

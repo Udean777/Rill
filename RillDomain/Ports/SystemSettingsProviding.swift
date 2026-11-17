@@ -5,5 +5,5 @@ import Foundation
 /// These are data, not behaviour: each result carries an `openURL` action that
 /// the platform dispatcher already knows how to perform.
 public protocol SystemSettingsProviding: Sendable {
-    var settings: [SearchResult] { get }
+    func settings() async -> [SearchResult]
 }

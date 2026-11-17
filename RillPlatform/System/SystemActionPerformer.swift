@@ -14,6 +14,9 @@ public final class SystemActionPerformer: ActionPerforming {
         case .openURL(let url), .openFile(let url):
             try await Self.open(url)
 
+        case .openWebURL(let url, let browserBundleID):
+            try await Self.openWebURL(url, browserBundleID: browserBundleID)
+
         case .copyToPasteboard(let text):
             await MainActor.run {
                 let pasteboard = NSPasteboard.general
@@ -21,7 +24,7 @@ public final class SystemActionPerformer: ActionPerforming {
                 pasteboard.setString(text, forType: .string)
             }
 
-        case .openSettings, .openClipboardHistory:
+        case .openSettings, .openClipboardHistory, .openApplicationsLauncher:
             // The app layer intercepts this before dispatch; reaching the
             // performer means the routing is broken, so fail loudly.
             throw SystemActionError.unsupportedAction
@@ -72,6 +75,45 @@ public final class SystemActionPerformer: ActionPerforming {
         _ = try await NSWorkspace.shared.open(url, configuration: configuration)
     }
 
+    private static func openWebURL(_ url: URL, browserBundleID: String?) async throws {
+        guard let browserBundleID,
+              !browserBundleID.isEmpty,
+              let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: browserBundleID) else {
+            try await open(url)
+            return
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        _ = try await NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration)
+    }
+
+    @MainActor
+    public static func installedBrowsers() -> [BrowserOption] {
+        guard let probeURL = URL(string: "https://example.com") else {
+            return []
+        }
+        let appURLs = NSWorkspace.shared.urlsForApplications(toOpen: probeURL)
+        var seenBundleIDs = Set<String>()
+        var options: [BrowserOption] = []
+
+        for appURL in appURLs {
+            let bundle = Bundle(url: appURL)
+            guard let bundleID = bundle?.bundleIdentifier,
+                  seenBundleIDs.insert(bundleID).inserted else {
+                continue
+            }
+            let name =
+                bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+                ?? bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String
+                ?? appURL.deletingPathExtension().lastPathComponent
+            options.append(BrowserOption(name: name, bundleID: bundleID))
+        }
+
+        return options.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
     @MainActor
     public static func revealInFinder(_ url: URL) {
         if FileManager.default.fileExists(atPath: url.path) {
@@ -118,6 +160,48 @@ public final class SystemActionPerformer: ActionPerforming {
     @MainActor
     public static func revealApplicationInFinder() {
         NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+    }
+
+    @MainActor
+    public static func openTrackpadMoreGesturesSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Trackpad-Settings.extension?MoreGestures") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @MainActor
+    public static func isSystemFourFingerPinchDisabled() -> Bool {
+        // macOS 26+ (Tahoe) stores the 4-finger pinch "Apps" gesture in com.apple.Spotlight.
+        if let spotlightDefaults = UserDefaults(suiteName: "com.apple.Spotlight"),
+           let appBrowseEnabled = spotlightDefaults.object(forKey: "trackpadAppBrowseEnabled") as? Bool,
+           !appBrowseEnabled {
+            return true
+        }
+
+        // Legacy macOS stores the Launchpad pinch toggle in com.apple.dock.
+        if let dockDefaults = UserDefaults(suiteName: "com.apple.dock"),
+           let launchpadEnabled = dockDefaults.object(forKey: "showLaunchpadGestureEnabled") as? Bool,
+           !launchpadEnabled {
+            return true
+        }
+
+        // Hardware-level fallback when all 4-finger pinch gestures are off.
+        let trackpadDomains = [
+            "com.apple.AppleMultitouchTrackpad",
+            "com.apple.driver.AppleBluetoothMultitouch.trackpad",
+        ]
+        var foundTrackpadSetting = false
+        for domain in trackpadDomains {
+            guard let defaults = UserDefaults(suiteName: domain),
+                  let raw = defaults.object(forKey: "TrackpadFourFingerPinchGesture") as? Int else {
+                continue
+            }
+            foundTrackpadSetting = true
+            if raw != 0 {
+                return false
+            }
+        }
+        return foundTrackpadSetting
     }
 
     @MainActor

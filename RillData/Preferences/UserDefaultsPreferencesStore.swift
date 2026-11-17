@@ -29,6 +29,14 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
         static let currencyConversionEnabled = "preferences.currency.enabled"
         static let calculatorEnabled = "preferences.calculator.enabled"
         static let webSearchEnabled = "preferences.webSearch.enabled"
+        static let defaultBrowserBundleID = "preferences.webSearch.defaultBrowserBundleID"
+        static let applicationsLauncherEnabled = "preferences.applicationsLauncher.enabled"
+        static let applicationsPinchGestureEnabled = "preferences.applicationsLauncher.pinchEnabled"
+        static let applicationsPinchSensitivity = "preferences.applicationsLauncher.pinchSensitivity"
+        static let applicationsHotkeyKeyCode = "preferences.applicationsLauncher.hotkey.keyCode"
+        static let applicationsHotkeyModifiers = "preferences.applicationsLauncher.hotkey.modifiers"
+        static let applicationsGridColumns = "preferences.applicationsLauncher.columns"
+        static let applicationsGridRows = "preferences.applicationsLauncher.rows"
         static let hiddenSections = "preferences.sections.hidden"
     }
 
@@ -73,9 +81,36 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
             currencyConversionEnabled: value(forKey: Key.currencyConversionEnabled, default: defaults.currencyConversionEnabled),
             calculatorEnabled: value(forKey: Key.calculatorEnabled, default: defaults.calculatorEnabled),
             webSearchEnabled: value(forKey: Key.webSearchEnabled, default: defaults.webSearchEnabled),
+            defaultBrowserBundleID: userDefaults.string(forKey: Key.defaultBrowserBundleID),
+            applicationsLauncherEnabled: value(
+                forKey: Key.applicationsLauncherEnabled,
+                default: defaults.applicationsLauncherEnabled
+            ),
+            applicationsPinchGestureEnabled: value(
+                forKey: Key.applicationsPinchGestureEnabled,
+                default: defaults.applicationsPinchGestureEnabled
+            ),
+            applicationsPinchSensitivity: value(
+                forKey: Key.applicationsPinchSensitivity,
+                default: defaults.applicationsPinchSensitivity
+            ),
+            applicationsHotkey: loadHotkey(
+                keyCodeKey: Key.applicationsHotkeyKeyCode,
+                modifiersKey: Key.applicationsHotkeyModifiers,
+                default: defaults.applicationsHotkey
+            ),
+            applicationsGridColumns: value(
+                forKey: Key.applicationsGridColumns,
+                default: defaults.applicationsGridColumns
+            ),
+            applicationsGridRows: value(
+                forKey: Key.applicationsGridRows,
+                default: defaults.applicationsGridRows
+            ),
             hiddenSections: Set(
                 (userDefaults.stringArray(forKey: Key.hiddenSections) ?? [])
                     .compactMap(Section.init(rawValue:))
+                    .filter { $0 != .fallback }
             )
         ).sanitized()
     }
@@ -115,6 +150,18 @@ public actor UserDefaultsPreferencesStore: PreferencesStoring {
         userDefaults.set(preferences.currencyConversionEnabled, forKey: Key.currencyConversionEnabled)
         userDefaults.set(preferences.calculatorEnabled, forKey: Key.calculatorEnabled)
         userDefaults.set(preferences.webSearchEnabled, forKey: Key.webSearchEnabled)
+        if let bundleID = preferences.defaultBrowserBundleID, !bundleID.isEmpty {
+            userDefaults.set(bundleID, forKey: Key.defaultBrowserBundleID)
+        } else {
+            userDefaults.removeObject(forKey: Key.defaultBrowserBundleID)
+        }
+        userDefaults.set(preferences.applicationsLauncherEnabled, forKey: Key.applicationsLauncherEnabled)
+        userDefaults.set(preferences.applicationsPinchGestureEnabled, forKey: Key.applicationsPinchGestureEnabled)
+        userDefaults.set(preferences.applicationsPinchSensitivity, forKey: Key.applicationsPinchSensitivity)
+        userDefaults.set(preferences.applicationsHotkey.keyCode, forKey: Key.applicationsHotkeyKeyCode)
+        userDefaults.set(preferences.applicationsHotkey.modifiers.rawValue, forKey: Key.applicationsHotkeyModifiers)
+        userDefaults.set(preferences.applicationsGridColumns, forKey: Key.applicationsGridColumns)
+        userDefaults.set(preferences.applicationsGridRows, forKey: Key.applicationsGridRows)
         userDefaults.set(
             preferences.hiddenSections.map(\.rawValue).sorted(),
             forKey: Key.hiddenSections

@@ -32,6 +32,26 @@ struct SystemSettingsTests {
         #expect(!sections.contains { $0.section == .systemSettings })
     }
 
+    @Test func `sub menu matches by title and by parent breadcrumb`() async throws {
+        let useCase = makeUseCase()
+
+        let byTitle = await useCase(SearchQuery(raw: "camera"))
+        let titleSection = try #require(byTitle.first { $0.section == .systemSettings })
+        #expect(titleSection.results.first?.title == "Camera")
+
+        let byBreadcrumb = await useCase(SearchQuery(raw: "privacy camera"))
+        let breadcrumbSection = try #require(byBreadcrumb.first { $0.section == .systemSettings })
+        #expect(breadcrumbSection.results.contains { $0.title == "Camera" })
+    }
+
+    @Test func `constant system settings breadcrumb prefix does not match unrelated items`() async {
+        let useCase = makeUseCase()
+
+        let sections = await useCase(SearchQuery(raw: "system"))
+        let settingsResults = sections.first { $0.section == .systemSettings }?.results ?? []
+        #expect(!settingsResults.contains { $0.title == "Camera" })
+    }
+
     private func makeUseCase() -> SearchUseCase {
         SearchUseCase(
             commands: EmptyCommands(),
@@ -44,13 +64,13 @@ struct SystemSettingsTests {
 }
 
 private struct FakeSystemSettings: SystemSettingsProviding {
-    var settings: [SearchResult] {
-        ["wallpaper", "privacy"].compactMap { raw in
+    func settings() async -> [SearchResult] {
+        var items: [SearchResult] = ["wallpaper", "privacy"].compactMap { raw in
             guard let url = URL(string: "x-apple.systempreferences:\(raw)") else {
                 return nil
             }
             return SearchResult(
-                id: .init(source: "system-settings", raw: raw),
+                id: .init(source: .systemSettings, raw: raw),
                 title: raw.capitalized,
                 icon: .systemSymbol("gearshape"),
                 section: .systemSettings,
@@ -58,6 +78,20 @@ private struct FakeSystemSettings: SystemSettingsProviding {
                 primaryAction: .openURL(url)
             )
         }
+        if let cameraURL = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Camera") {
+            items.append(
+                SearchResult(
+                    id: .init(source: .systemSettings, raw: "privacy-camera"),
+                    title: "Camera",
+                    subtitle: "System Settings › Privacy & Security",
+                    icon: .systemSymbol("camera"),
+                    section: .systemSettings,
+                    kind: .systemSettings,
+                    primaryAction: .openURL(cameraURL)
+                )
+            )
+        }
+        return items
     }
 }
 

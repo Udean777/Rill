@@ -23,8 +23,34 @@ public enum MatchScore {
         return max(tuning.fuzzyFloor, tuning.fuzzyCeiling - tuning.gapPenalty * Double(gap))
     }
 
+    /// Returns the best match score for `result`, checking `title` first and
+    /// falling back to the parent breadcrumb `subtitle` (with constant
+    /// `"System Settings › "` prefix stripped) + `title`.
+    public static func bestScore(
+        for result: SearchResult,
+        query: SearchQuery,
+        tuning: RankingTuning = .standard
+    ) -> Double {
+        let titleScore = score(title: result.title, query: query, tuning: tuning)
+        if titleScore > 0 {
+            return titleScore
+        }
+        guard let subtitle = result.subtitle, !subtitle.isEmpty else {
+            return 0
+        }
+        let prefix = "System Settings › "
+        let breadcrumb = subtitle.hasPrefix(prefix)
+            ? String(subtitle.dropFirst(prefix.count))
+            : subtitle
+        guard !breadcrumb.isEmpty else { return 0 }
+        return 0.85 * score(title: "\(breadcrumb) \(result.title)", query: query, tuning: tuning)
+    }
+
     private static func fold(_ value: String) -> String {
-        value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        if value.utf8.allSatisfy({ $0 < 128 }) {
+            return value.lowercased()
+        }
+        return value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 
     /// `true` when any word in `title` starts with `query`.

@@ -44,6 +44,7 @@ public final class PaletteViewModel {
 
     @ObservationIgnored private let searchUseCase: SearchUseCase
     @ObservationIgnored private var searchTask: Task<Void, Never>?
+    @ObservationIgnored private var shortcutIndexByID: [SearchResult.ID: Int] = [:]
 
     public init(searchUseCase: SearchUseCase) {
         self.searchUseCase = searchUseCase
@@ -62,6 +63,9 @@ public final class PaletteViewModel {
             return RankedSection(section: ranked.section, results: Array(window))
         }
         results = displaySections.flatMap(\.results)
+        shortcutIndexByID = Dictionary(
+            uniqueKeysWithValues: results.prefix(9).enumerated().map { ($1.id, $0 + 1) }
+        )
     }
 
     private func publish(_ newSections: [RankedSection]) {
@@ -254,10 +258,7 @@ public final class PaletteViewModel {
 
     /// The ⌘N hint for a row, or `nil` past the ninth result.
     public func shortcutNumber(for id: SearchResult.ID) -> Int? {
-        guard let index = results.firstIndex(where: { $0.id == id }), index < 9 else {
-            return nil
-        }
-        return index + 1
+        shortcutIndexByID[id]
     }
 
     /// Re-runs the current query, e.g. after a preference that changes results.
@@ -272,6 +273,7 @@ public final class PaletteViewModel {
         sections = []
         displaySections = []
         results = []
+        shortcutIndexByID = [:]
         selectedResultID = nil
         applicationsPage = 0
         mode = .launcher

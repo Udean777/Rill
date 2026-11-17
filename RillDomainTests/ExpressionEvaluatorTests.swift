@@ -35,6 +35,16 @@ struct ExpressionEvaluatorTests {
 
     @Test func `formatting integers and decimals`() {
         #expect(ExpressionEvaluator.formatResult(42.0) == "42")
+        #expect(ExpressionEvaluator.formatResult(4000.0) == "4,000")
         #expect(ExpressionEvaluator.formatResult(3.14159) == "3.14159")
+    }
+
+    @Test func `natural operators equals sign and thousands separators`() {
+        #expect(ExpressionEvaluator.evaluate("12 × 5") == 60.0)
+        #expect(ExpressionEvaluator.evaluate("20 ÷ 4") == 5.0)
+        #expect(ExpressionEvaluator.evaluate("6 x 7") == 42.0)
+        #expect(ExpressionEvaluator.evaluate("= 10 + 20") == 30.0)
+        #expect(ExpressionEvaluator.evaluate("10 + 20 =") == 30.0)
+        #expect(ExpressionEvaluator.evaluate("1,000 + 2,500") == 3500.0)
     }
 }

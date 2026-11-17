@@ -121,7 +121,7 @@ struct PaletteFooterView: View {
             return "Open"
         case .openFile:
             return "Open"
-        case .openURL:
+        case .openURL, .openWebURL:
             return "Open"
         case .copyToPasteboard:
             return "Copy"
@@ -129,6 +129,8 @@ struct PaletteFooterView: View {
             return "Settings"
         case .openClipboardHistory:
             return "Clipboard"
+        case .openApplicationsLauncher:
+            return "Open"
         }
     }
 

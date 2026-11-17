@@ -1,17 +1,6 @@
 import RillDomain
 import SwiftUI
 
-extension SettingsViewModel {
-    func binding<Value: Equatable>(
-        for keyPath: WritableKeyPath<Preferences, Value>
-    ) -> Binding<Value> {
-        Binding(
-            get: { self.preferences[keyPath: keyPath] },
-            set: { self.update(keyPath, to: $0) }
-        )
-    }
-}
-
 struct SettingsCard<Content: View>: View {
     let title: LocalizedStringKey
     @ViewBuilder let content: () -> Content
@@ -47,6 +36,28 @@ struct SettingsCardDivider: View {
         Rectangle()
             .fill(Color.primary.opacity(0.06))
             .frame(height: 0.5)
+    }
+}
+
+/// A label with a trailing control: side by side when the row has room,
+/// stacked when a narrow window would squeeze the text into a ragged column.
+struct SettingsResponsiveRow<Content: View, Accessory: View>: View {
+    @ViewBuilder let content: () -> Content
+    @ViewBuilder let accessory: () -> Accessory
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 12) {
+                content()
+                Spacer(minLength: 8)
+                accessory()
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                content()
+                accessory()
+            }
+        }
     }
 }
 
@@ -109,7 +120,7 @@ struct PermissionStatusRow: View {
     let action: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        SettingsResponsiveRow {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(title)
@@ -130,10 +141,9 @@ struct PermissionStatusRow: View {
                 Text(subtitle)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            Spacer(minLength: 8)
-
+        } accessory: {
             Button(actionTitle, action: action)
                 .controlSize(.small)
         }
@@ -149,29 +159,30 @@ struct PermissionsCardContent: View {
                 PermissionStatusRow(
                     title: "Full Disk Access",
                     subtitle: "Prevents Desktop, Downloads & Documents popups when previewing clipboard files.",
-                    isGranted: viewModel.isFullDiskAccessGranted,
+                    isGranted: viewModel.permissions.isFullDiskAccessGranted,
                     actionTitle: "Open Settings",
-                    action: { viewModel.openFullDiskAccessSettings() }
+                    action: { viewModel.permissions.openFullDiskAccessSettings() }
                 )
 
-                if !viewModel.isFullDiskAccessGranted {
-                    HStack(spacing: 8) {
+                if !viewModel.permissions.isFullDiskAccessGranted {
+                    SettingsResponsiveRow {
                         Text("If Rill is not listed, click Reveal App and drag Rill.app into Full Disk Access.")
                             .font(.system(size: 10.5))
                             .foregroundStyle(.secondary)
-                        Spacer()
+                            .fixedSize(horizontal: false, vertical: true)
+                    } accessory: {
                         Button("Reveal App") {
-                            viewModel.revealApplicationInFinder()
+                            viewModel.permissions.revealApplicationInFinder()
                         }
                         .controlSize(.mini)
                     }
                 }
             }
 
-            if !viewModel.isFullDiskAccessGranted {
+            if !viewModel.permissions.isFullDiskAccessGranted {
                 SettingsCardDivider()
 
-                HStack(alignment: .center, spacing: 12) {
+                SettingsResponsiveRow {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Protected Folders")
                             .font(.system(size: 13))
@@ -179,15 +190,14 @@ struct PermissionsCardContent: View {
                         Text("Authorize Desktop, Downloads, and Documents upfront without Full Disk Access.")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-
-                    Spacer(minLength: 8)
-
-                    Button(viewModel.isRequestingFolderAccess ? "Requesting…" : "Grant Folders") {
-                        viewModel.requestProtectedFolderAccess()
+                } accessory: {
+                    Button(viewModel.permissions.isRequestingFolderAccess ? "Requesting…" : "Grant Folders") {
+                        viewModel.permissions.requestProtectedFolderAccess()
                     }
                     .controlSize(.small)
-                    .disabled(viewModel.isRequestingFolderAccess)
+                    .disabled(viewModel.permissions.isRequestingFolderAccess)
                 }
             }
 
@@ -196,22 +206,16 @@ struct PermissionsCardContent: View {
             PermissionStatusRow(
                 title: "Accessibility",
                 subtitle: "Enables direct ⌘V paste into the active application.",
-                isGranted: viewModel.isAccessibilityGranted,
+                isGranted: viewModel.permissions.isAccessibilityGranted,
                 actionTitle: "Open Settings",
-                action: { viewModel.openAccessibilitySettings() }
+                action: { viewModel.permissions.openAccessibilitySettings() }
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            viewModel.refreshStatus()
+            viewModel.refreshStatusAndReapplyPreferences()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
-            viewModel.refreshStatus()
-        }
-        .task {
-            while !Task.isCancelled {
-                viewModel.refreshStatus()
-                try? await Task.sleep(for: .seconds(1))
-            }
+            viewModel.refreshStatusAndReapplyPreferences()
         }
     }
 }
