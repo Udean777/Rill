@@ -111,12 +111,12 @@ public struct SearchUseCase: Sendable {
             from: pins,
             applications: allApplications,
             commands: allCommands
-        ).filter { MatchScore.score(title: $0.title, query: query) > 0 }
+        ).filter { MatchScore.bestScore(for: $0, query: query) > 0 }
         let favoriteIDs = Set(favorites.map(\.id))
 
         let matchingStatic = (allCommands + allApplications).filter { result in
             !favoriteIDs.contains(result.id)
-                && MatchScore.score(title: result.title, query: query) > 0
+                && MatchScore.bestScore(for: result, query: query) > 0
         }
 
         var fallbackRows = fallbacks.results(

@@ -52,6 +52,53 @@ struct SystemSettingsTests {
         #expect(!settingsResults.contains { $0.title == "Camera" })
     }
 
+    @Test func `panes unrelated to the query are dropped`() async {
+        let sections = await makeUseCase()(SearchQuery(raw: "terminal"))
+
+        #expect(!sections.contains { $0.section == .systemSettings })
+    }
+
+    @Test func `an application name match renders above system settings`() async {
+        let terminal = SearchResult.fixture(
+            title: "Terminal",
+            section: .applications,
+            kind: .application,
+            source: .application
+        )
+        let useCase = SearchUseCase(
+            commands: EmptyCommands(),
+            applications: FixedApplications(applications: [terminal]),
+            usage: EmptyUsage(),
+            clock: FixedClock(now: Date(timeIntervalSince1970: 0)),
+            systemSettings: FakeSystemSettings()
+        )
+
+        let sections = await useCase(SearchQuery(raw: "terminal"))
+
+        #expect(sections.map(\.section) == [.applications, .fallback])
+        #expect(sections[0].results.map(\.title) == ["Terminal"])
+    }
+
+    @Test func `applications rank above matching panes`() async {
+        let app = SearchResult.fixture(
+            title: "Wallpaper",
+            section: .applications,
+            kind: .application,
+            source: .application
+        )
+        let useCase = SearchUseCase(
+            commands: EmptyCommands(),
+            applications: FixedApplications(applications: [app]),
+            usage: EmptyUsage(),
+            clock: FixedClock(now: Date(timeIntervalSince1970: 0)),
+            systemSettings: FakeSystemSettings()
+        )
+
+        let sections = await useCase(SearchQuery(raw: "wallpaper"))
+
+        #expect(sections.map(\.section) == [.applications, .systemSettings, .fallback])
+    }
+
     private func makeUseCase() -> SearchUseCase {
         SearchUseCase(
             commands: EmptyCommands(),
@@ -65,7 +112,7 @@ struct SystemSettingsTests {
 
 private struct FakeSystemSettings: SystemSettingsProviding {
     func settings() async -> [SearchResult] {
-        var items: [SearchResult] = ["wallpaper", "privacy"].compactMap { raw in
+        var items: [SearchResult] = ["wallpaper", "privacy", "game center", "screen time"].compactMap { raw in
             guard let url = URL(string: "x-apple.systempreferences:\(raw)") else {
                 return nil
             }
@@ -101,6 +148,12 @@ private struct EmptyCommands: CommandProviding {
 
 private struct EmptyApplications: ApplicationCataloguing {
     func applications() async -> [SearchResult] { [] }
+}
+
+private struct FixedApplications: ApplicationCataloguing {
+    let applications: [SearchResult]
+
+    func applications() async -> [SearchResult] { applications }
 }
 
 private struct EmptyUsage: UsageStoring {

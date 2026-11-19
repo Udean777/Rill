@@ -103,7 +103,7 @@ public struct RankedSection: Identifiable, Sendable {
 }
 
 public enum Section: String, Sendable, CaseIterable {
-    case currency, systemSettings, favorites, suggestions, commands, applications, files, fallback
+    case currency, calculator, favorites, suggestions, applications, systemSettings, commands, files, fallback
 }
 ```
 
@@ -115,7 +115,7 @@ public protocol FileSearching: Sendable {
 }
 
 public protocol ApplicationCataloguing: Sendable {
-    func applications() async -> [SearchResult]          // cached; refreshed in background
+    func applications() async -> [SearchResult]          // cached; rescanned when an app folder changes
 }
 
 public protocol CommandProviding: Sendable {
@@ -525,6 +525,7 @@ Each is a deliberate deferral with an upgrade path, and each appears as a `short
 | JSON usage snapshot                                       | > ~50k rows, or clipboard history added                                                           |
 | Write-through usage writes (no batching)                  | Executions or app activations become automated or batched                                          |
 | Application scan one level per root                       | Missing apps reported inside bundle-style subdirectories                                          |
+| Application cache refreshed by folder contents            | An app replaced in place under the same name keeps a stale identity → watch bundle IDs too        |
 | No extension/plugin seam beyond `ActionDescriptor.custom` | When a second-party command source is needed                                                      |
 | Single home-directory scope for file search               | When custom folder scopes are requested by users                                                  |
 | File existence checked per pin on every search            | Pin counts reach the hundreds, or profile shows measurable cost                                  |

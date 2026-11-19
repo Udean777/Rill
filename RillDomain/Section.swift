@@ -3,10 +3,10 @@
 public enum Section: String, Sendable, CaseIterable {
     case currency
     case calculator
-    case systemSettings
     case favorites
     case suggestions
     case applications
+    case systemSettings
     case commands
     case files
     case fallback

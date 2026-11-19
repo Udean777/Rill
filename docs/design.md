@@ -113,17 +113,18 @@ struct SearchResult: Identifiable, Sendable, Hashable {
 Fixed order, always rendered in this order even when empty (empty sections are dropped, order is not re-sorted):
 
 1. `currency` — a live conversion of the typed amount, when the query parses as currency.
-2. `systemSettings` — matching macOS System Settings panes for the typed query.
+2. `calculator` — the evaluated expression, when the query is arithmetic.
 3. `favorites` — user-pinned results.
 4. `suggestions` — apps used inside the configured window (default 7 days), most used first, capped at 5 (see §5.2).
-5. `applications` — installed apps, shown in pages of the configured size (default 5).
-6. `commands` — built-in and app commands matching the query; a fixed chip row in the root layout.
-7. `files` — Spotlight metadata matches.
-8. `fallback` — "Search the web for …", "Open …", "Calculate …".
+5. `applications` — installed apps, shown in pages of the configured size (default 5). Because apps come before every other result group, typing an app name puts that app at the top.
+6. `systemSettings` — matching macOS System Settings panes for the typed query. A pane joins only when each query token appears in its title or breadcrumb, so scattered-letter fuzzy matches never appear.
+7. `commands` — built-in and app commands matching the query; a fixed chip row in the root layout.
+8. `files` — Spotlight metadata matches.
+9. `fallback` — "Search the web for …", "Open …", "Calculate …".
 
 Sections the user switched off in Settings are filtered out before ranking, so a hidden section never contributes a header, a row, or a pager — on a typed query and on the root layout alike. Hiding every section leaves the palette with its search field and footer but no rows.
 
-Suggested apps are excluded from `applications` so a row never appears twice.
+Suggested apps are excluded from `applications` so a row never appears twice. Installed apps are keyed by bundle identifier: when a release and a debug copy coexist, the debug copy (`get-task-allow` entitlement) is hidden, and `/Applications` wins over `~/Applications`. Palette rows show the install folder as their subtitle (`/Applications`, `~/Applications`); the Applications grid shows titles only.
 
 Ranking never crosses section boundaries. Users learn where things live; a file never jumps above an app command because of a fuzzy-score quirk.
 
@@ -146,6 +147,8 @@ Order within a section:
 3. Tie-break: shorter title wins, then alphabetical (stable, so results don't jitter between keystrokes).
 
 `matchScore` for text: exact match `1.0`; prefix `0.9`; word-boundary prefix `0.8`; substring `0.6`; subsequence/fuzzy `0.3–0.5` scaled by gap penalty. Diacritic- and case-insensitive.
+
+`bestScore`, the score the palette actually filters and ranks with, ignores pure subsequence matches (`Score 0`): every query token must appear in the result's title, or in a System Settings pane's breadcrumb, with punctuation ignored so `wifi` still finds `Wi-Fi`. An entry that does not contain what the user typed is never listed.
 
 `frecency` decays: `exp(-Δdays / 30)` multiplied by a use-count factor with diminishing returns (`log1p(count)`), normalized into 0…1. Constants live in one `RankingTuning` struct so they're tunable and testable.
 
