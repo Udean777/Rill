@@ -7,8 +7,8 @@ struct SectionTests {
     @Test func `sections render in the order users learned`() {
         #expect(
             Section.allCases == [
-                .currency, .calculator, .systemSettings, .favorites, .suggestions,
-                .applications, .commands, .files, .fallback,
+                .currency, .calculator, .favorites, .suggestions, .applications,
+                .systemSettings, .commands, .files, .fallback,
             ]
         )
     }

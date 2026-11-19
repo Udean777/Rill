@@ -109,6 +109,17 @@ struct ApplicationGridFilterTests {
         #expect(filtered.map(\.title) == ["Photos", "Photoshop"])
     }
 
+    @Test func `fuzzy-only matches drop out`() {
+        let items = [
+            makeItem(id: "app:Safari", title: "Safari"),
+            makeItem(id: "app:Photos", title: "Photos"),
+        ]
+
+        let filtered = ApplicationGridFilter.filter(items, query: SearchQuery(raw: "sfr"))
+
+        #expect(filtered.isEmpty)
+    }
+
     private func makeItem(id: String, title: String) -> ApplicationGridItem {
         ApplicationGridItem(
             id: id,

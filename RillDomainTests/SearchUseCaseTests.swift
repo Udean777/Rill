@@ -171,8 +171,22 @@ struct SearchUseCaseTests {
         #expect(sections.first?.results.first?.title == "Safari")
     }
 
+    @Test func `results without the query's letters are dropped`() async {
+        let app = SearchResult.fixture(
+            title: "Safari", section: .applications, kind: .application, source: .application
+        )
+        let command = SearchResult.fixture(title: "Save File")
+        let useCase = makeUseCase(commands: [command], applications: [app])
+
+        let fuzzyOnly = await useCase(SearchQuery(raw: "sfr"))
+        #expect(!fuzzyOnly.contains { $0.section == .applications || $0.section == .commands })
+
+        let prefix = await useCase(SearchQuery(raw: "saf"))
+        #expect(prefix.first?.results.map(\.title) == ["Safari"])
+    }
+
     @Test func `includes file results in section order below applications`() async {
-        let command = SearchResult.fixture(title: "Save File", section: .commands)
+        let command = SearchResult.fixture(title: "Save Safari Link", section: .commands)
         let app = SearchResult.fixture(title: "Safari", section: .applications)
         let file = SearchResult.fixture(title: "Safety.pdf", section: .files, kind: .file)
 
@@ -202,7 +216,7 @@ struct SearchUseCaseTests {
     }
 
     @Test func `disabling file search suppresses file results`() async {
-        let command = SearchResult.fixture(title: "Save File", section: .commands)
+        let command = SearchResult.fixture(title: "Save Safari Link", section: .commands)
         let file = SearchResult.fixture(title: "Safety.pdf", section: .files, kind: .file)
 
         let useCase = makeUseCase(
@@ -219,7 +233,7 @@ struct SearchUseCaseTests {
     }
 
     @Test func `hiding the files section suppresses file results`() async {
-        let command = SearchResult.fixture(title: "Save File", section: .commands)
+        let command = SearchResult.fixture(title: "Save Safari Link", section: .commands)
         let file = SearchResult.fixture(title: "Safety.pdf", section: .files, kind: .file)
 
         let useCase = makeUseCase(

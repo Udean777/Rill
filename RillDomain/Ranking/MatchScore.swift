@@ -8,10 +8,81 @@ public enum MatchScore {
         query: SearchQuery,
         tuning: RankingTuning = .standard
     ) -> Double {
+        score(foldedTitle: fold(title), foldedQuery: query.folded, tuning: tuning)
+    }
+
+    /// Like `score`, but a fuzzy-only subsequence scores `0`: the title must
+    /// contain the query's words.
+    public static func containingScore(
+        title: String,
+        query: SearchQuery,
+        tuning: RankingTuning = .standard
+    ) -> Double {
+        relevantScore(
+            foldedTitle: fold(title),
+            foldedQuery: query.folded,
+            query: query,
+            tuning: tuning
+        )
+    }
+
+    /// Returns the best match score for `result`, checking `title` first and
+    /// falling back to the parent breadcrumb `subtitle` (with constant
+    /// `"System Settings › "` prefix stripped) + `title`. A fuzzy-only
+    /// subsequence scores `0`: the result must contain the query's words.
+    public static func bestScore(
+        for result: SearchResult,
+        query: SearchQuery,
+        tuning: RankingTuning = .standard
+    ) -> Double {
         let foldedQuery = query.folded
+        let foldedTitle = fold(result.title)
+        let titleScore = relevantScore(
+            foldedTitle: foldedTitle,
+            foldedQuery: foldedQuery,
+            query: query,
+            tuning: tuning
+        )
+        if titleScore > 0 {
+            return titleScore
+        }
+        guard result.kind == .systemSettings,
+              let subtitle = result.subtitle,
+              !subtitle.isEmpty else {
+            return 0
+        }
+        let prefix = "System Settings › "
+        let breadcrumb = subtitle.hasPrefix(prefix)
+            ? String(subtitle.dropFirst(prefix.count))
+            : subtitle
+        guard !breadcrumb.isEmpty else { return 0 }
+        let folded = fold("\(breadcrumb) \(result.title)")
+        return 0.85 * relevantScore(
+            foldedTitle: folded,
+            foldedQuery: foldedQuery,
+            query: query,
+            tuning: tuning
+        )
+    }
+
+    private static func relevantScore(
+        foldedTitle: String,
+        foldedQuery: String,
+        query: SearchQuery,
+        tuning: RankingTuning
+    ) -> Double {
+        let score = score(foldedTitle: foldedTitle, foldedQuery: foldedQuery, tuning: tuning)
+        guard score > 0 else { return 0 }
+        return relates(foldedTitle, to: query) ? score : 0
+    }
+
+    private static func score(
+        foldedTitle: String,
+        foldedQuery: String,
+        tuning: RankingTuning
+    ) -> Double {
         guard !foldedQuery.isEmpty else { return 1 }
 
-        let foldedTitle = fold(title)
         if foldedTitle == foldedQuery { return 1 }
         if foldedTitle.hasPrefix(foldedQuery) { return 0.9 }
         if foldedTitle.contains(foldedQuery) {
@@ -23,27 +94,26 @@ public enum MatchScore {
         return max(tuning.fuzzyFloor, tuning.fuzzyCeiling - tuning.gapPenalty * Double(gap))
     }
 
-    /// Returns the best match score for `result`, checking `title` first and
-    /// falling back to the parent breadcrumb `subtitle` (with constant
-    /// `"System Settings › "` prefix stripped) + `title`.
-    public static func bestScore(
-        for result: SearchResult,
-        query: SearchQuery,
-        tuning: RankingTuning = .standard
-    ) -> Double {
-        let titleScore = score(title: result.title, query: query, tuning: tuning)
-        if titleScore > 0 {
-            return titleScore
+    /// `true` when every token of `query` appears in the folded text once
+    /// punctuation is ignored.
+    private static func relates(_ foldedText: String, to query: SearchQuery) -> Bool {
+        var compacted: String?
+        for token in query.tokens {
+            let foldedToken = fold(token)
+            if foldedToken.isEmpty || foldedText.contains(foldedToken) {
+                continue
+            }
+            // Only pay for punctuation stripping when the plain text misses,
+            // so "wifi" still finds "Wi-Fi" without touching the hot path.
+            let haystack = compacted ?? compact(foldedText)
+            compacted = haystack
+            guard haystack.contains(compact(foldedToken)) else { return false }
         }
-        guard let subtitle = result.subtitle, !subtitle.isEmpty else {
-            return 0
-        }
-        let prefix = "System Settings › "
-        let breadcrumb = subtitle.hasPrefix(prefix)
-            ? String(subtitle.dropFirst(prefix.count))
-            : subtitle
-        guard !breadcrumb.isEmpty else { return 0 }
-        return 0.85 * score(title: "\(breadcrumb) \(result.title)", query: query, tuning: tuning)
+        return true
+    }
+
+    private static func compact(_ value: String) -> String {
+        value.filter { $0.isLetter || $0.isNumber }
     }
 
     private static func fold(_ value: String) -> String {

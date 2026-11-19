@@ -9,7 +9,7 @@ public enum ApplicationGridFilter {
     ) -> [ApplicationGridItem] {
         items
             .compactMap { item -> (item: ApplicationGridItem, score: Double)? in
-                let score = MatchScore.score(title: item.title, query: query)
+                let score = MatchScore.containingScore(title: item.title, query: query)
                 return score > 0 ? (item, score) : nil
             }
             .sorted { lhs, rhs in
