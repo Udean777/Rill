@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import RillDomain
+import SwiftUI
 
 /// Presentation state and customisation actions for the floating Applications
 /// grid launcher.
@@ -13,14 +14,17 @@ public final class ApplicationsGridViewModel {
     public var query: String = "" {
         didSet {
             currentPage = 0
+            swipeOffset = 0
             rebuildFilteredItems()
             clampSelection()
         }
     }
     public var currentPage: Int = 0
+    public var swipeOffset: CGFloat = 0
     public var selectedID: String?
     public var openFolderID: UUID?
     public var isVisible: Bool = false
+    public var isReduceMotionEnabled = false
 
     public var columns: Int = Preferences.default.applicationsGridColumns
     public var rows: Int = Preferences.default.applicationsGridRows
@@ -31,6 +35,7 @@ public final class ApplicationsGridViewModel {
     @ObservationIgnored private let loadUseCase: LoadApplicationsGridUseCase
     @ObservationIgnored private let layoutStore: ApplicationsLayoutStoring
     @ObservationIgnored private let layoutEditor = EditApplicationsLayoutUseCase()
+    @ObservationIgnored private var prewarmedNodeCount = 0
 
     public init(
         loadUseCase: LoadApplicationsGridUseCase,
@@ -65,7 +70,11 @@ public final class ApplicationsGridViewModel {
     }
 
     public var pagedNodes: [ApplicationsGridNode] {
-        Array(SectionPager.slice(nodes, page: currentPage, pageSize: pageSize))
+        Array(nodes(on: currentPage))
+    }
+
+    public func nodes(on page: Int) -> ArraySlice<ApplicationsGridNode> {
+        SectionPager.slice(nodes, page: page, pageSize: pageSize)
     }
 
     public var openFolder: (id: UUID, name: String, items: [ApplicationGridItem])? {
@@ -82,6 +91,7 @@ public final class ApplicationsGridViewModel {
         isVisible = true
         query = ""
         openFolderID = nil
+        swipeOffset = 0
         Task {
             await reload()
         }
@@ -92,18 +102,12 @@ public final class ApplicationsGridViewModel {
         if nodes != output.nodes {
             nodes = output.nodes
             rebuildFilteredItems()
-            let firstPageResults = nodes.prefix(pageSize).flatMap { node -> [SearchResult] in
-                switch node {
-                case .item(let item): [item.asSearchResult]
-                case .folder(_, _, let items): items.prefix(4).map(\.asSearchResult)
-                }
-            }
-            IconCache.shared.prewarm(firstPageResults)
+            prewarmIconsIfNeeded()
         }
         if hiddenApplications != output.hiddenApplications {
             hiddenApplications = output.hiddenApplications
         }
-        if let openFolderID, openFolder == nil {
+        if openFolderID != nil, openFolder == nil {
             self.openFolderID = nil
         }
         let clampedPage = min(max(0, currentPage), pageCount - 1)
@@ -113,10 +117,19 @@ public final class ApplicationsGridViewModel {
         clampSelection()
     }
 
+    /// Loads every icon while the grid is hidden, so a page flip never pays
+    /// `NSWorkspace` on the main thread mid-gesture.
+    private func prewarmIconsIfNeeded() {
+        guard !isVisible, prewarmedNodeCount != nodes.count else { return }
+        prewarmedNodeCount = nodes.count
+        IconCache.shared.prewarm(nodes.flatMap(\.items).map(\.asSearchResult), limit: 400)
+    }
+
     public func resetTransientState() {
         query = ""
         openFolderID = nil
         selectedID = nil
+        swipeOffset = 0
     }
 
     public func apply(preferences: Preferences) {
@@ -127,11 +140,45 @@ public final class ApplicationsGridViewModel {
 
     // MARK: - Navigation & Execution
 
-    public func changePage(by delta: Int) {
-        let next = min(max(0, currentPage + delta), pageCount - 1)
-        guard next != currentPage else { return }
-        currentPage = next
+    public func updateSwipeOffset(_ offset: CGFloat) {
+        swipeOffset = offset
+    }
+
+    public func settleSwipe(pageDelta: Int) {
+        withAnimation(pageAnimation) {
+            swipeOffset = 0
+            if pageDelta != 0 {
+                movePage(by: pageDelta)
+            }
+        }
+        if pageDelta != 0 {
+            clampSelection()
+        }
+    }
+
+    public func goToPage(_ page: Int) {
+        let clamped = min(max(0, page), pageCount - 1)
+        withAnimation(pageAnimation) {
+            swipeOffset = 0
+            currentPage = clamped
+        }
         clampSelection()
+    }
+
+    public func changePage(by delta: Int) {
+        withAnimation(pageAnimation) {
+            swipeOffset = 0
+            movePage(by: delta)
+        }
+        clampSelection()
+    }
+
+    private var pageAnimation: Animation? {
+        isReduceMotionEnabled ? nil : .spring(duration: 0.30, bounce: 0.0)
+    }
+
+    private func movePage(by delta: Int) {
+        currentPage = min(max(0, currentPage + delta), pageCount - 1)
     }
 
     public func moveSelection(dx: Int, dy: Int) {

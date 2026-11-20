@@ -65,6 +65,9 @@ public struct ApplicationsGridView: View {
         .task(id: viewModel.isVisible) {
             isSearchFocused = viewModel.isVisible
         }
+        .onChange(of: reduceMotion, initial: true) { _, newValue in
+            viewModel.isReduceMotionEnabled = newValue
+        }
         .sheet(isPresented: $isShowingAddCustom) {
             addCustomSheet
         }
@@ -138,65 +141,94 @@ public struct ApplicationsGridView: View {
     private static let columnSpacing: CGFloat = 18
     private static let rowSpacing: CGFloat = 22
 
+    private var designSize: CGSize {
+        CGSize(
+            width: CGFloat(viewModel.columns) * Self.tileWidth
+                + CGFloat(max(0, viewModel.columns - 1)) * Self.columnSpacing,
+            height: CGFloat(viewModel.rows) * Self.tileHeight
+                + CGFloat(max(0, viewModel.rows - 1)) * Self.rowSpacing
+        )
+    }
+
+    /// Pages sit side by side and translate with the trackpad; only
+    /// `InteractivePagerTrack` observes `swipeOffset`, so 120Hz drags cost a
+    /// single layer transform without re-evaluating any tile views.
     private var pagedGrid: some View {
         GeometryReader { proxy in
-            let designSize = CGSize(
-                width: CGFloat(viewModel.columns) * Self.tileWidth
-                    + CGFloat(max(0, viewModel.columns - 1)) * Self.columnSpacing,
-                height: CGFloat(viewModel.rows) * Self.tileHeight
-                    + CGFloat(max(0, viewModel.rows - 1)) * Self.rowSpacing
-            )
+            let design = designSize
             let scale = min(
                 1,
-                proxy.size.width / max(designSize.width, 1),
-                proxy.size.height / max(designSize.height, 1)
+                proxy.size.width / max(design.width, 1),
+                proxy.size.height / max(design.height, 1)
             )
+            let pageWidth = proxy.size.width
 
-            LazyVGrid(
-                columns: Array(
-                    repeating: GridItem(.fixed(Self.tileWidth), spacing: Self.columnSpacing),
-                    count: viewModel.columns
-                ),
-                spacing: Self.rowSpacing
+            InteractivePagerTrack(
+                viewModel: viewModel,
+                pageWidth: pageWidth,
+                pageHeight: proxy.size.height
             ) {
-                ForEach(viewModel.pagedNodes) { node in
-                    ApplicationGridTile(
-                        node: node,
-                        isSelected: viewModel.selectedID == node.id,
-                        isDropTargeted: dropTargetID == node.id,
-                        onTap: { handleNodeTap(node) },
-                        onHideApp: { viewModel.hideApplication(appID: $0) },
-                        onRemoveCustom: { viewModel.removeCustomItem(id: $0) },
-                        onGroupWithNewFolder: {
-                            if let sibling = viewModel.pagedNodes.first(where: { $0.id != node.id }) {
-                                viewModel.createFolder(
-                                    combining: node.id,
-                                    with: sibling.id,
-                                    name: String(localized: "New Folder")
-                                )
-                            }
-                        }
-                    )
-                    .draggable(node.id)
-                    .dropDestination(for: String.self) { droppedIDs, _ in
-                        guard let sourceID = droppedIDs.first, sourceID != node.id else {
-                            return false
-                        }
-                        viewModel.moveNode(draggedID: sourceID, to: node.id)
-                        return true
-                    } isTargeted: { isTargeted in
-                        dropTargetID = isTargeted ? node.id : (dropTargetID == node.id ? nil : dropTargetID)
+                HStack(spacing: 0) {
+                    ForEach(0..<viewModel.pageCount, id: \.self) { page in
+                        pageGrid(page, design: design, scale: scale)
+                            .frame(width: pageWidth, height: proxy.size.height)
                     }
                 }
             }
-            .frame(width: designSize.width, height: designSize.height, alignment: .top)
-            .scaleEffect(scale)
-            .frame(width: designSize.width * scale, height: designSize.height * scale)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .animation(
-                reduceMotion ? nil : .easeOut(duration: 0.18),
-                value: viewModel.currentPage
-            )
+        }
+    }
+
+    private func pageGrid(_ page: Int, design: CGSize, scale: CGFloat) -> some View {
+        let nodes = Array(viewModel.nodes(on: page))
+        let columns = viewModel.columns
+        return VStack(spacing: Self.rowSpacing) {
+            ForEach(0..<viewModel.rows, id: \.self) { row in
+                HStack(spacing: Self.columnSpacing) {
+                    ForEach(0..<columns, id: \.self) { column in
+                        let index = row * columns + column
+                        if index < nodes.count {
+                            tile(for: nodes[index])
+                                .frame(width: Self.tileWidth, height: Self.tileHeight)
+                        } else {
+                            Color.clear
+                                .frame(width: Self.tileWidth, height: Self.tileHeight)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(width: design.width, height: design.height, alignment: .top)
+        .scaleEffect(scale)
+        .frame(width: design.width * scale, height: design.height * scale)
+    }
+
+    private func tile(for node: ApplicationsGridNode) -> some View {
+        ApplicationGridTile(
+            node: node,
+            isSelected: viewModel.selectedID == node.id,
+            isDropTargeted: dropTargetID == node.id,
+            onTap: { handleNodeTap(node) },
+            onHideApp: { viewModel.hideApplication(appID: $0) },
+            onRemoveCustom: { viewModel.removeCustomItem(id: $0) },
+            onGroupWithNewFolder: {
+                if let sibling = viewModel.nodes(on: viewModel.currentPage).first(where: { $0.id != node.id }) {
+                    viewModel.createFolder(
+                        combining: node.id,
+                        with: sibling.id,
+                        name: String(localized: "New Folder")
+                    )
+                }
+            }
+        )
+        .draggable(node.id)
+        .dropDestination(for: String.self) { droppedIDs, _ in
+            guard let sourceID = droppedIDs.first, sourceID != node.id else {
+                return false
+            }
+            viewModel.moveNode(draggedID: sourceID, to: node.id)
+            return true
+        } isTargeted: { isTargeted in
+            dropTargetID = isTargeted ? node.id : (dropTargetID == node.id ? nil : dropTargetID)
         }
     }
 
@@ -250,7 +282,7 @@ public struct ApplicationsGridView: View {
             HStack(spacing: 2) {
                 ForEach(0..<viewModel.pageCount, id: \.self) { index in
                     Button {
-                        viewModel.currentPage = index
+                        viewModel.goToPage(index)
                     } label: {
                         Circle()
                             .fill(index == viewModel.currentPage ? Color.primary : Color.primary.opacity(0.25))
@@ -432,5 +464,33 @@ public struct ApplicationsGridView: View {
             viewModel.openFolderID = id
             viewModel.selectedID = viewModel.openFolder?.items.first?.id
         }
+    }
+}
+
+/// Isolates observation of `currentPage` and `swipeOffset` so interactive
+/// trackpad drags translate the page strip without re-evaluating tile bodies.
+private struct InteractivePagerTrack<Content: View>: View {
+    let viewModel: ApplicationsGridViewModel
+    let pageWidth: CGFloat
+    let pageHeight: CGFloat
+    let content: Content
+
+    init(
+        viewModel: ApplicationsGridViewModel,
+        pageWidth: CGFloat,
+        pageHeight: CGFloat,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.viewModel = viewModel
+        self.pageWidth = pageWidth
+        self.pageHeight = pageHeight
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .offset(x: -CGFloat(viewModel.currentPage) * pageWidth + viewModel.swipeOffset)
+            .frame(width: pageWidth, height: pageHeight, alignment: .leading)
+            .clipped()
     }
 }
