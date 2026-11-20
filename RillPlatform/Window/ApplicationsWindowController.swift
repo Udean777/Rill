@@ -15,8 +15,10 @@ public final class ApplicationsWindowController: NSObject, NSWindowDelegate {
     private let viewModel: ApplicationsGridViewModel
     private var isPrewarmed = false
     private var hideAnimationID = 0
-    private var accumulatedScrollX: CGFloat = 0
-    private var didFlipPageInScroll = false
+    private var swipePhysics = PageSwipePhysics()
+
+    /// Matches `ApplicationsGridView`'s horizontal padding (`72 * 2`).
+    private static let horizontalContentPadding: CGFloat = 144
 
     public var isVisible: Bool {
         panel.isVisible
@@ -53,9 +55,6 @@ public final class ApplicationsWindowController: NSObject, NSWindowDelegate {
         panel.onScrollWheel = { [weak self] event in
             self?.handleScrollWheel(event) ?? false
         }
-        panel.onSwipeEvent = { [weak self] event in
-            self?.handleAppKitSwipe(event) ?? false
-        }
         viewModel.onRequestHide = { [weak self] in
             self?.hide()
         }
@@ -77,6 +76,7 @@ public final class ApplicationsWindowController: NSObject, NSWindowDelegate {
 
     public func show() {
         hideAnimationID += 1
+        swipePhysics.reset()
         let targetFrame = frameForActiveScreen()
         panel.setFrame(targetFrame, display: false)
 
@@ -101,6 +101,7 @@ public final class ApplicationsWindowController: NSObject, NSWindowDelegate {
 
     public func hide(animated: Bool = true) {
         guard panel.isVisible else { return }
+        swipePhysics.reset()
         viewModel.isVisible = false
         hideAnimationID += 1
         let animationID = hideAnimationID
@@ -197,55 +198,57 @@ public final class ApplicationsWindowController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// Drives interactive trackpad page swiping with live finger tracking,
+    /// edge rubber-banding, and light commit thresholds so even lazy swipes
+    /// feel effortless and responsive.
     private func handleScrollWheel(_ event: NSEvent) -> Bool {
-        guard event.hasPreciseScrollingDeltas,
-              !viewModel.isFiltering,
+        guard !viewModel.isFiltering,
               viewModel.openFolderID == nil else {
+            swipePhysics.reset()
             return false
         }
+        // Swallow inertia frames so a single flick never triggers a second page turn.
+        guard event.momentumPhase == [] else { return true }
 
-        // Ignore inertia/momentum scroll frames so a single 2-finger flick flips at most one page.
-        guard event.momentumPhase == [] else {
-            return true
-        }
+        let phase = swipePhase(for: event.phase)
+        let swipeEvent = PageSwipeEvent(
+            deltaX: Double(event.scrollingDeltaX),
+            deltaY: Double(event.scrollingDeltaY),
+            phase: phase,
+            hasPreciseDeltas: event.hasPreciseScrollingDeltas,
+            timestamp: event.timestamp
+        )
+        let pageWidth = max(Double(panel.frame.width - Self.horizontalContentPadding), 1)
+        let context = PageSwipeContext(
+            currentPage: viewModel.currentPage,
+            pageCount: viewModel.pageCount,
+            pageWidth: pageWidth
+        )
 
-        if event.phase == .began || event.phase == .mayBegin {
-            accumulatedScrollX = 0
-            didFlipPageInScroll = false
+        switch swipePhysics.process(swipeEvent, in: context) {
+        case .ignore:
+            break
+        case .track(let offset):
+            viewModel.updateSwipeOffset(CGFloat(offset))
+        case .settle(let pageDelta):
+            viewModel.settleSwipe(pageDelta: pageDelta)
         }
-
-        if event.phase == .ended || event.phase == .cancelled {
-            accumulatedScrollX = 0
-            didFlipPageInScroll = false
-            return true
-        }
-
-        if !didFlipPageInScroll, abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) {
-            accumulatedScrollX += event.scrollingDeltaX
-            if accumulatedScrollX <= -35 {
-                didFlipPageInScroll = true
-                viewModel.changePage(by: 1)
-                return true
-            }
-            if accumulatedScrollX >= 35 {
-                didFlipPageInScroll = true
-                viewModel.changePage(by: -1)
-                return true
-            }
-        }
-        return false
+        return true
     }
 
-    private func handleAppKitSwipe(_ event: NSEvent) -> Bool {
-        guard !viewModel.isFiltering, viewModel.openFolderID == nil else { return false }
-        if event.deltaX < 0 {
-            viewModel.changePage(by: 1)
-            return true
+    private func swipePhase(for phase: NSEvent.Phase) -> PageSwipePhase {
+        if phase.contains(.began) || phase.contains(.mayBegin) {
+            return .began
         }
-        if event.deltaX > 0 {
-            viewModel.changePage(by: -1)
-            return true
+        if phase.contains(.ended) {
+            return .ended
         }
-        return false
+        if phase.contains(.cancelled) {
+            return .cancelled
+        }
+        if phase.contains(.changed) || phase.contains(.stationary) {
+            return .changed
+        }
+        return .discrete
     }
 }

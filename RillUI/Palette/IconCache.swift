@@ -11,7 +11,7 @@ final class IconCache {
     private let cache = NSCache<NSString, NSImage>()
 
     private init() {
-        cache.countLimit = 300
+        cache.countLimit = 500
     }
 
     func image(for url: URL) -> NSImage {

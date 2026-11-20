@@ -5,30 +5,27 @@ import AppKit
 final class ApplicationsPanel: NSPanel {
     var onKeyDown: ((NSEvent) -> Bool)?
     var onScrollWheel: ((NSEvent) -> Bool)?
-    var onSwipeEvent: ((NSEvent) -> Bool)?
 
     override var canBecomeKey: Bool { true }
 
     override var canBecomeMain: Bool { false }
 
+    /// `super.sendEvent` hands scroll events straight to the SwiftUI hosting
+    /// view, so `scrollWheel(with:)` alone never sees them once the grid has a
+    /// `ScrollView`. Observing here runs before that dispatch.
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .keyDown, onKeyDown?(event) == true {
-            return
+        switch event.type {
+        case .keyDown:
+            if onKeyDown?(event) == true {
+                return
+            }
+        case .scrollWheel:
+            if onScrollWheel?(event) == true {
+                return
+            }
+        default:
+            break
         }
         super.sendEvent(event)
-    }
-
-    override func scrollWheel(with event: NSEvent) {
-        if onScrollWheel?(event) == true {
-            return
-        }
-        super.scrollWheel(with: event)
-    }
-
-    override func swipe(with event: NSEvent) {
-        if onSwipeEvent?(event) == true {
-            return
-        }
-        super.swipe(with: event)
     }
 }
