@@ -77,9 +77,7 @@ public struct ApplicationsGridView: View {
     }
 
     private var topBar: some View {
-        HStack(spacing: 12) {
-            Spacer()
-
+        ZStack {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 13, weight: .semibold))
@@ -97,8 +95,6 @@ public struct ApplicationsGridView: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(.white.opacity(0.14), lineWidth: 0.8)
             )
-
-            Spacer()
 
             HStack(spacing: 8) {
                 if !viewModel.hiddenApplications.isEmpty {
@@ -124,7 +120,9 @@ public struct ApplicationsGridView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var gridColumns: [GridItem] {
